@@ -1,115 +1,136 @@
 # Architecture Overview
 
-## Project Structure
+## Summary
 
+Keep2Notion is a Python microservices app that:
+
+- reads notes from Google Keep
+- uploads note images to Supabase Storage
+- writes notes into Notion
+- tracks sync jobs and sync state in PostgreSQL
+- exposes admin controls through a Django UI
+
+Current runtime image flow is:
+
+`Google Keep -> Keep Extractor -> Supabase Storage -> Notion Writer -> Notion`
+
+## Services
+
+### Admin Interface
+
+- Framework: Django
+- Port: `8000`
+- Purpose: credentials, manual sync, job list, job detail, retry, abort
+
+### API Gateway
+
+- Framework: FastAPI
+- Port: `8001`
+- Purpose: external API for health, sync start, sync status, history
+
+### Keep Extractor
+
+- Framework: FastAPI
+- Port: `8003`
+- Purpose: authenticate with Google Keep, extract notes, download images, upload images to Supabase Storage
+
+### Notion Writer
+
+- Framework: FastAPI
+- Port: `8004`
+- Purpose: resolve target database, create missing databases, create/update Notion pages
+
+### Sync Service
+
+- Framework: FastAPI
+- Port: `8005`
+- Purpose: orchestrate sync workflow, track progress, update sync state, handle retries and failures
+
+### PostgreSQL
+
+- Port: `5432`
+- Purpose: store sync jobs, sync state, encrypted credentials, sync logs
+
+## Data Model
+
+### `credentials`
+
+Stores:
+
+- Gmail/user id
+- encrypted Google Keep master token
+- encrypted Notion API token
+- Notion root page or main database reference
+
+### `sync_jobs`
+
+Stores:
+
+- job status
+- full vs incremental mode
+- total note count
+- processed note count
+- failed note count
+- error message
+
+### `sync_state`
+
+Maps:
+
+- `user_id + keep_note_id -> notion_page_id`
+
+This lets incremental sync update existing pages instead of always creating new ones.
+
+### `sync_logs`
+
+Stores per-job logs for the admin detail screen.
+
+## Current Sync Flow
+
+1. User starts sync from admin UI or API.
+2. Sync Service loads encrypted credentials from PostgreSQL.
+3. Sync Service asks Keep Extractor for notes.
+4. Keep Extractor downloads note images from Google Keep.
+5. Keep Extractor uploads images to Supabase Storage and returns public URLs.
+6. Sync Service decides target Notion database for each note.
+7. Notion Writer reuses or creates databases based on routing rules.
+8. Notion Writer creates or updates Notion pages.
+9. Sync Service updates `sync_state`, `sync_jobs`, and `sync_logs`.
+
+## Database Routing Rules
+
+Current routing behavior:
+
+- first non-empty Google Keep label wins
+- target database name = that label
+- if note has no labels, app uses fallback database name from manual trigger page
+- if target database does not exist and credential root is a Notion page, app creates it automatically
+
+Examples:
+
+- labels `work`, `ideas` -> database `work`
+- no labels -> fallback database, for example `Keep`
+
+## Important Runtime Notes
+
+- Supabase Storage is used for note image storage
+- Notion image blocks use public external URLs from Supabase Storage
+- best credential setup is a Notion page URL/ID, not only a single database ID
+- Sync Service port is `8005`, not `8002`
+
+## Local Development
+
+Main entrypoint for local use:
+
+```bash
+docker compose up -d
 ```
-.
-├── services/                    # Microservices
-│   ├── api_gateway/            # FastAPI REST API gateway
-│   │   ├── __init__.py
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   ├── admin_interface/        # Django admin web interface
-│   │   ├── __init__.py
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   ├── sync_service/           # Sync orchestrator
-│   │   ├── __init__.py
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   ├── keep_extractor/         # Google Keep integration
-│   │   ├── __init__.py
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   └── notion_writer/          # Notion integration
-│       ├── __init__.py
-│       ├── Dockerfile
-│       └── requirements.txt
-├── shared/                      # Shared package
-│   ├── __init__.py
-│   ├── models.py               # Common data models
-│   ├── config.py               # Configuration utilities
-│   ├── requirements.txt
-│   └── README.md
-├── database/                    # Database schema and migrations
-│   ├── schema.sql              # PostgreSQL schema
-│   ├── alembic.ini             # Alembic configuration
-│   ├── migrations/             # Alembic migrations
-│   │   ├── env.py
-│   │   ├── script.py.mako
-│   │   └── versions/
-│   │       └── 001_initial_schema.py
-│   ├── requirements.txt
-│   └── README.md
-├── docker-compose.yml           # Local development setup
-├── .env.example                 # Environment variables template
-├── .gitignore
-├── setup.sh                     # Setup script
-├── README.md
-└── ARCHITECTURE.md              # This file
-```
 
-## Service Communication
+Open:
 
-```
-External Client → API Gateway → Sync Service → Keep Extractor → Google Keep
-                                              ↓
-                                              → Notion Writer → Notion API
-                                              ↓
-                                              → PostgreSQL
+- Admin UI: [http://localhost:8000](http://localhost:8000)
+- API Gateway: [http://localhost:8001](http://localhost:8001)
 
-Administrator → Admin Interface → Sync Service → ...
-```
+## Deployment Notes
 
-## Technology Stack
-
-- **API Gateway**: FastAPI, Python 3.11
-- **Admin Interface**: Django 4.2, Python 3.11
-- **Sync Service**: FastAPI, Python 3.11
-- **Keep Extractor**: FastAPI, gkeepapi, boto3, Python 3.11
-- **Notion Writer**: FastAPI, notion-client, boto3, Python 3.11
-- **Database**: PostgreSQL 15
-- **Containerization**: Docker, Docker Compose
-- **Cloud**: AWS (ECS/EKS, RDS, S3, Secrets Manager, CloudWatch)
-
-## Service Ports
-
-- API Gateway: 8001
-- Admin Interface: 8000
-- Sync Service: 8002
-- Keep Extractor: 8003
-- Notion Writer: 8004
-- PostgreSQL: 5432
-
-## Data Flow
-
-1. User triggers sync via API Gateway or Admin Interface
-2. Request forwarded to Sync Service
-3. Sync Service queries database for sync state
-4. Sync Service calls Keep Extractor to fetch notes
-5. Keep Extractor downloads images to S3
-6. Sync Service calls Notion Writer for each note
-7. Notion Writer uploads images from S3 to Notion
-8. Sync Service updates sync state in database
-9. Response returned to user
-
-## Development Workflow
-
-1. Clone repository
-2. Copy `.env.example` to `.env` and configure
-3. Run `./setup.sh` to set up local environment
-4. Run `docker-compose up` to start all services
-5. Access admin interface at http://localhost:8000
-6. Access API at http://localhost:8001
-
-## Deployment
-
-The application is designed to be deployed on AWS:
-
-- **Container Orchestration**: ECS or EKS
-- **Database**: RDS PostgreSQL
-- **Storage**: S3 for images
-- **Secrets**: AWS Secrets Manager
-- **Monitoring**: CloudWatch
-
-See individual service directories for deployment details.
+See [`deployment/`](deployment/README.md) for current deployment documentation.

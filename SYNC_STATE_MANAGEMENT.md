@@ -45,7 +45,7 @@ DELETE FROM sync_state WHERE user_id = 'your@email.com';
 
 This removes all sync state records for the user, so the next sync will:
 - ✓ Create new Notion pages for all Keep notes
-- ✓ Upload images to S3 (if not already there)
+- ✓ Upload images to Supabase Storage (if configured correctly)
 - ✓ Establish new sync_state mappings
 
 ## Production Considerations

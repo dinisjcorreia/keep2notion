@@ -1,176 +1,104 @@
 # Admin Interface Service
 
-Django-based web administration interface for the Google Keep to Notion Sync application.
+Django admin UI for Keep2Notion.
 
-## Overview
+## What It Does
 
-The Admin Interface provides a web-based dashboard for:
-- Monitoring sync job status and history
-- Manually triggering sync operations
-- Managing user credentials (Google Keep OAuth, Notion API tokens)
-- Viewing detailed sync logs and error messages
-- Configuring system settings
+Admin UI provides:
 
-## Technology Stack
+- dashboard
+- sync job history
+- sync job detail with logs
+- manual sync trigger
+- credential management
+- retry and abort controls
+- clear sync state action
 
-- **Framework**: Django 4.2.9
-- **Database**: PostgreSQL (via psycopg2-binary)
-- **API Client**: httpx for communicating with Sync Service
-- **Server**: Gunicorn for production deployment
-- **Frontend**: Bootstrap 5 for responsive UI
+## Stack
 
-## Project Structure
+- Django 4.2
+- Gunicorn
+- PostgreSQL
+- httpx
 
+## Local Port
+
+`8000`
+
+## Main Screens
+
+### Credential Configuration
+
+Stores:
+
+- Gmail/user id
+- Google Keep master token
+- Notion API token
+- Notion root page or main database URL/ID
+
+Notes:
+
+- token fields are encrypted before storage
+- edit screen can keep masked tokens without forcing re-entry
+- list supports edit, delete, and clear sync state
+
+### Manual Sync Trigger
+
+Lets you choose:
+
+- user
+- full or incremental sync
+- fallback database name
+
+Fallback database name is used for notes without Google Keep labels.
+
+### Sync Job Detail
+
+Shows:
+
+- job status
+- items processed
+- items synced
+- errors
+- detailed logs
+
+Page auto-refreshes while job is queued or running.
+
+## Environment Variables
+
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `SYNC_SERVICE_URL`
+- `LOG_LEVEL`
+
+Current local Sync Service URL:
+
+```bash
+export SYNC_SERVICE_URL=http://localhost:8005
 ```
-admin_interface/
-├── admin_project/          # Django project settings
-│   ├── settings.py        # Main configuration
-│   ├── urls.py            # URL routing
-│   └── wsgi.py            # WSGI application
-├── sync_admin/            # Main Django app
-│   ├── models.py          # Database models
-│   ├── views.py           # View controllers
-│   ├── admin.py           # Django admin configuration
-│   └── migrations/        # Database migrations
-├── templates/             # HTML templates
-│   └── base.html          # Base template
-├── static/                # Static files (CSS, JS, images)
-│   └── css/
-│       └── style.css      # Custom styles
-├── manage.py              # Django management script
-└── requirements.txt       # Python dependencies
-```
 
-## Configuration
+## Local Run
 
-The service uses environment variables for configuration:
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `SECRET_KEY`: Django secret key for security
-- `DEBUG`: Enable/disable debug mode
-- `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
-- `SYNC_SERVICE_URL`: URL of the Sync Service
-- `LOG_LEVEL`: Logging level (INFO, DEBUG, WARNING, ERROR)
-
-## Setup
-
-1. Install dependencies:
 ```bash
 pip install -r requirements.txt
-```
-
-2. Set up environment variables (create `.env` file or export):
-```bash
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keep_notion_sync
-export SECRET_KEY=your-secret-key-here
-export SYNC_SERVICE_URL=http://localhost:8002
-```
-
-3. Run database migrations:
-```bash
 python manage.py migrate
-```
-
-4. Create a superuser for admin access:
-```bash
-python manage.py createsuperuser
-```
-
-5. Collect static files:
-```bash
-python manage.py collectstatic --noinput
-```
-
-6. Run the development server:
-```bash
 python manage.py runserver 0.0.0.0:8000
 ```
 
-## Production Deployment
-
-For production, use Gunicorn:
+Or with Gunicorn:
 
 ```bash
 gunicorn admin_project.wsgi:application --bind 0.0.0.0:8000 --workers 4
 ```
 
-## Docker
+## Tests
 
-Build and run with Docker:
-
-```bash
-docker build -t admin-interface .
-docker run -p 8000:8000 --env-file .env admin-interface
-```
-
-## Features
-
-### Dashboard
-- Overview of recent sync jobs
-- Success/failure statistics
-- System health status
-
-### Sync Job Management
-- List all sync jobs with pagination
-- Filter by status, user, date range
-- View detailed job information and logs
-- Retry failed jobs
-
-### Credential Management
-- Store and manage Google Keep OAuth tokens
-- Store and manage Notion API tokens
-- Encrypted storage for sensitive data
-
-### Manual Sync Trigger
-- Form to initiate sync jobs
-- Select user and sync type (full/incremental)
-- Real-time job status updates
-
-## API Endpoints
-
-The admin interface communicates with the Sync Service via HTTP:
-
-- `POST /internal/sync/execute` - Trigger sync job
-- `GET /internal/sync/status/{job_id}` - Get job status
-
-## Security
-
-- Credentials are encrypted using AES-256 before storage
-- HTTPS enforced in production
-- CSRF protection enabled
-- Secure session management
-- No sensitive data in logs
-
-## Development
-
-Run tests:
 ```bash
 python manage.py test
 ```
 
-Create new migrations:
+Focused example:
+
 ```bash
-python manage.py makemigrations
+python manage.py test test_sync_job_views.SyncJobViewsTest
 ```
-
-Access Django admin:
-```
-http://localhost:8000/admin/
-```
-
-## Troubleshooting
-
-### Database Connection Issues
-- Verify DATABASE_URL is correct
-- Ensure PostgreSQL is running
-- Check network connectivity
-
-### Static Files Not Loading
-- Run `python manage.py collectstatic`
-- Verify STATIC_ROOT and STATIC_URL settings
-- Check file permissions
-
-### Import Errors
-- Ensure shared module is in Python path
-- Verify all dependencies are installed
-- Check virtual environment activation

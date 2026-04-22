@@ -9,6 +9,7 @@ The Sync Service is responsible for:
 - Determining which notes need to be synchronized (full or incremental)
 - Calling the Keep Extractor service to fetch notes
 - Calling the Notion Writer service to create or update pages
+- Resolving target Notion databases from Keep labels and fallback database name
 - Tracking sync progress and state
 - Handling errors gracefully and logging all operations
 - Sending notifications for critical errors
@@ -45,7 +46,8 @@ Execute a synchronization job.
 {
   "job_id": "uuid",
   "user_id": "string",
-  "full_sync": false
+  "full_sync": false,
+  "main_database_name": "Keep"
 }
 ```
 
@@ -108,17 +110,13 @@ The main orchestration class that handles the sync workflow:
 1. Loads user credentials
 2. Determines notes to sync (full or incremental)
 3. Fetches notes from Keep Extractor
-4. Processes each note (create or update in Notion)
-5. Updates sync state
-6. Tracks progress and handles errors
+4. Resolves target Notion database for each note
+5. Processes each note (create or update in Notion)
+6. Updates sync state
+7. Tracks progress and handles errors
 
 ### NotificationService
-Handles sending notifications for critical errors. Can be configured to send notifications via:
-- AWS SNS
-- Slack webhooks
-- Email via AWS SES
-- PagerDuty
-- Custom webhook URLs
+Handles sending notifications for critical errors. Generic webhook support is the main documented path.
 
 ## Environment Variables
 
@@ -193,7 +191,7 @@ The service logs all operations at different levels:
 
 Logs are written to:
 1. Standard output (captured by Docker/Kubernetes)
-2. Database sync_logs table (for historical tracking)
+2. Database sync_logs table (for job-level tracking)
 
 ## Testing
 

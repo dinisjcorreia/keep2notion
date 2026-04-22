@@ -345,8 +345,6 @@ Additional docs:
 - [Sync State Management](SYNC_STATE_MANAGEMENT.md)
 - [Deployment Guide](deployment/README.md)
 
-Repo still contains Kubernetes and AWS-oriented deployment examples under [`deployment/`](deployment/README.md). Runtime app storage flow for note images is now Supabase, not S3.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
