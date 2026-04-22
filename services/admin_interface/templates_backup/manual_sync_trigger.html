@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Manual Sync Trigger - Google Keep to Notion Sync{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Manual Sync Trigger</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-play-circle"></i> Initiate Sync Job
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Use this form to manually trigger a synchronization job between Google Keep and Notion.
+                    Select a user, the sync type, and the fallback database name for notes without tags.
+                </p>
+
+                <form method="post" action="{% url 'manual_sync_trigger' %}">
+                    {% csrf_token %}
+                    
+                    <!-- User Selection -->
+                    <div class="mb-3">
+                        <label for="user_id" class="form-label">
+                            <strong>User</strong>
+                            <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="user_id" name="user_id" required>
+                            <option value="">-- Select a user --</option>
+                            {% for user in users %}
+                                <option value="{{ user }}">{{ user }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            Select the user whose notes you want to sync. Only users with configured credentials are shown.
+                        </div>
+                    </div>
+
+                    <!-- Sync Type Selection -->
+                    <div class="mb-3">
+                        <label for="sync_type" class="form-label">
+                            <strong>Sync Type</strong>
+                            <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="sync_type" name="sync_type" required>
+                            <option value="">-- Select sync type --</option>
+                            <option value="incremental">Incremental Sync</option>
+                            <option value="full">Full Sync</option>
+                        </select>
+                        <div class="form-text">
+                            <strong>Incremental:</strong> Only sync notes that have been modified since the last sync.<br>
+                            <strong>Full:</strong> Sync all notes, regardless of previous sync state.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="main_database_name" class="form-label">
+                            <strong>Main Database Name</strong>
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="main_database_name"
+                            name="main_database_name"
+                            value="Keep"
+                            required
+                            placeholder="e.g. Keep"
+                        >
+                        <div class="form-text">
+                            Notes without Google Keep tags go into this database. Tagged notes use the first matching tag name as the Notion database name.
+                        </div>
+                    </div>
+
+                    <!-- Info Alert -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Note:</strong> The sync job will be executed asynchronously. 
+                        After submission, you will be redirected to the job detail page where you can monitor progress.
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-play-circle"></i> Start Sync Job
+                        </button>
+                        <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </form>
+
+                {% if not users %}
+                <div class="alert alert-warning mt-3">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>No users found!</strong> 
+                    Please configure user credentials before triggering a sync job.
+                    <a href="{% url 'admin:sync_admin_credential_changelist' %}" class="alert-link">
+                        Manage Credentials
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Sync Jobs -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Sync Jobs</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    View recently triggered sync jobs to monitor their progress.
+                </p>
+                <a href="{% url 'sync_job_list' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-list"></i> View All Sync Jobs
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        margin-bottom: 1rem;
+    }
+    
+    .form-label strong {
+        font-weight: 600;
+    }
+    
+    .form-select, .form-control {
+        border-radius: 0.375rem;
+    }
+    
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
+    }
+</style>
+{% endblock %}

@@ -1,227 +1,101 @@
 {% extends "base.html" %}
 
-{% block title %}Sync Jobs - Google Keep to Notion Sync{% endblock %}
+{% block title %}Sync Jobs - Keep2Notion Admin{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-4">Sync Jobs</h1>
+<div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-50">Sync Jobs</h1>
+        <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">History and real-time status of all sync operations.</p>
     </div>
 </div>
 
-<!-- Filters -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Filters</h5>
-            </div>
-            <div class="card-body">
-                <form method="get" action="{% url 'sync_job_list' %}" class="row g-3">
-                    <div class="col-md-3">
-                        <label for="status" class="form-label">Status</label>
-                        <select name="status" id="status" class="form-select">
-                            <option value="">All Statuses</option>
-                            {% for value, label in status_choices %}
-                                <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <label for="user" class="form-label">User ID</label>
-                        <input type="text" 
-                               name="user" 
-                               id="user" 
-                               class="form-control" 
-                               placeholder="Search by user ID"
-                               value="{{ current_filters.user }}">
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <label for="date_from" class="form-label">Date From</label>
-                        <input type="date" 
-                               name="date_from" 
-                               id="date_from" 
-                               class="form-control"
-                               value="{{ current_filters.date_from }}">
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <label for="date_to" class="form-label">Date To</label>
-                        <input type="date" 
-                               name="date_to" 
-                               id="date_to" 
-                               class="form-control"
-                               value="{{ current_filters.date_to }}">
-                    </div>
-                    
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary me-2">Apply Filters</button>
-                        <a href="{% url 'sync_job_list' %}" class="btn btn-secondary">Clear</a>
-                    </div>
-                </form>
-            </div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+    <!-- Tool bar -->
+    <div class="p-4 border-b border-slate-200 bg-white flex items-center justify-between dark:border-slate-700 dark:bg-slate-900">
+        <div class="relative w-64">
+            <input type="text" class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-shadow dark:border-slate-600 dark:focus:ring-brand-400 dark:focus:border-brand-400" placeholder="Search jobs...">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2 dark:text-slate-500"></i>
+        </div>
+        <div class="flex gap-2 text-sm">
+            <button class="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-600 hover flex items-center gap-2 font-medium dark:border-slate-600 dark:text-slate-400">
+                <i data-lucide="filter" class="w-4 h-4"></i> Filter
+            </button>
+        </div>
+    </div>
+    
+    <div class="overflow-x-auto min-h-[400px]">
+        <table class="w-full text-sm text-left align-middle">
+            <thead class="bg-slate-50 text-slate-500 border-b border-slate-200 text-xs uppercase tracking-wider dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700">
+                <tr>
+                    <th scope="col" class="px-6 py-4 font-semibold">Job ID</th>
+                    <th scope="col" class="px-6 py-4 font-semibold">Type</th>
+                    <th scope="col" class="px-6 py-4 font-semibold">User ID</th>
+                    <th scope="col" class="px-6 py-4 font-semibold">Status</th>
+                    <th scope="col" class="px-6 py-4 font-semibold">Started At</th>
+                    <th scope="col" class="px-6 py-4 font-semibold">Completed At</th>
+                    <th scope="col" class="px-6 py-4 font-semibold text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white dark:divide-slate-800 dark:bg-slate-900">
+                {% for job in page_obj %}
+                <tr class="hover/70 transition-colors group">
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-900 font-medium dark:text-slate-50">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="file-json" class="w-4 h-4 text-slate-400 group-hover:text-brand-500 transition-colors dark:text-slate-500"></i>
+                            {{ job.job_id|truncatechars:12 }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-600 capitalize dark:text-slate-400">
+                        {{ job.sync_type|default:"Full" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                        {{ job.user_id|truncatechars:8 }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {% if job.status == 'completed' %}bg-emerald-100 text-emerald-700 border border-emerald-200 w-fit elif 'failed' %}bg-rose-100 text-rose-700 border-rose-200 'running' %}bg-amber-100 text-amber-700 border-amber-200 else %}bg-slate-100 text-slate-700 border-slate-200 w-fit{% endif %} dark:text-emerald-400 dark:border-emerald-500/20 dark:text-rose-400 dark:border-rose-500/20 dark:text-amber-400 dark:border-amber-500/20 dark:text-slate-300 dark:border-slate-700">
+                            <span class="w-1.5 h-1.5 rounded-full mr-1.5 {% if job.status == 'completed' %}bg-emerald-500 elif 'failed' %}bg-rose-500 'running' %}bg-amber-500 animate-pulse else %}bg-slate-500{% endif %}"></span>
+                            {{ job.status|title }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400">
+                        {{ job.created_at|date:"M d, Y H:i" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-500 dark:text-slate-400">
+                        {{ job.completed_at|date:"M d, Y H:i"|default:"-" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <a href="{% url 'sync_job_detail' job.job_id %}" class="inline-flex items-center justify-center p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors dark:text-slate-500" title="View Details">
+                            <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 dark:bg-slate-800/50">
+                                <i data-lucide="inbox" class="w-6 h-6 text-slate-400 dark:text-slate-500"></i>
+                            </div>
+                            <p class="text-base font-medium text-slate-900 dark:text-slate-50">No sync jobs found</p>
+                            <p class="text-sm mt-1">Any triggered jobs will appear here.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Modern Pagination Placeholder -->
+    <div class="border-t border-slate-200 bg-slate-50/50 px-6 py-4 flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/50">
+        <div class="text-sm text-slate-500 dark:text-slate-400">
+            Showing latest records
+        </div>
+        <div class="flex gap-1">
+            <button class="px-3 py-1 text-sm border border-slate-200 bg-white rounded-md text-slate-400 cursor-not-allowed dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500">Previous</button>
+            <button class="px-3 py-1 text-sm border border-slate-200 bg-white rounded-md text-slate-700 hover dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Next</button>
         </div>
     </div>
 </div>
-
-<!-- Results Summary -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="alert alert-info">
-            Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ total_count }} sync jobs
-        </div>
-    </div>
-</div>
-
-<!-- Sync Jobs Table -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                {% if page_obj %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>Job ID</th>
-                                <th>User ID</th>
-                                <th>Status</th>
-                                <th>Type</th>
-                                <th>Progress</th>
-                                <th>Created</th>
-                                <th>Completed</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for job in page_obj %}
-                            <tr>
-                                <td>
-                                    <code class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ job.job_id }}">
-                                        {{ job.job_id }}
-                                    </code>
-                                </td>
-                                <td>{{ job.user_id }}</td>
-                                <td>
-                                    <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}info{% else %}secondary{% endif %}">
-                                        {{ job.status|upper }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% if job.full_sync %}
-                                        <span class="badge bg-primary">Full</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Incremental</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if job.total_notes > 0 %}
-                                        <div class="progress" style="min-width: 120px; height: 25px;">
-                                            <div class="progress-bar {% if job.failed_notes > 0 %}bg-warning{% endif %}" 
-                                                 role="progressbar" 
-                                                 style="width: {% widthratio job.processed_notes job.total_notes 100 %}%"
-                                                 aria-valuenow="{{ job.processed_notes }}" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="{{ job.total_notes }}">
-                                                {{ job.processed_notes }}/{{ job.total_notes }}
-                                            </div>
-                                        </div>
-                                        {% if job.failed_notes > 0 %}
-                                            <small class="text-danger">{{ job.failed_notes }} failed</small>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="text-muted">N/A</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <small>{{ job.created_at|date:"Y-m-d H:i:s" }}</small>
-                                </td>
-                                <td>
-                                    {% if job.completed_at %}
-                                        <small>{{ job.completed_at|date:"Y-m-d H:i:s" }}</small>
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{% url 'sync_job_detail' job.job_id %}" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        View Details
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Pagination -->
-                {% if page_obj.has_other_pages %}
-                <nav aria-label="Sync jobs pagination" class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        {% if page_obj.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page=1{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}{% if current_filters.user %}&user={{ current_filters.user }}{% endif %}{% if current_filters.date_from %}&date_from={{ current_filters.date_from }}{% endif %}{% if current_filters.date_to %}&date_to={{ current_filters.date_to }}{% endif %}">First</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}{% if current_filters.user %}&user={{ current_filters.user }}{% endif %}{% if current_filters.date_from %}&date_from={{ current_filters.date_from }}{% endif %}{% if current_filters.date_to %}&date_to={{ current_filters.date_to }}{% endif %}">Previous</a>
-                            </li>
-                        {% endif %}
-                        
-                        <li class="page-item active">
-                            <span class="page-link">
-                                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-                            </span>
-                        </li>
-                        
-                        {% if page_obj.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}{% if current_filters.user %}&user={{ current_filters.user }}{% endif %}{% if current_filters.date_from %}&date_from={{ current_filters.date_from }}{% endif %}{% if current_filters.date_to %}&date_to={{ current_filters.date_to }}{% endif %}">Next</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}{% if current_filters.user %}&user={{ current_filters.user }}{% endif %}{% if current_filters.date_from %}&date_from={{ current_filters.date_from }}{% endif %}{% if current_filters.date_to %}&date_to={{ current_filters.date_to }}{% endif %}">Last</a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                {% endif %}
-                
-                {% else %}
-                <div class="alert alert-info">
-                    No sync jobs found matching your filters.
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    .card {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    }
-    
-    .table td {
-        vertical-align: middle;
-    }
-    
-    .progress {
-        height: 1.5rem;
-    }
-    
-    .text-truncate {
-        display: inline-block;
-        max-width: 150px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-</style>
 {% endblock %}

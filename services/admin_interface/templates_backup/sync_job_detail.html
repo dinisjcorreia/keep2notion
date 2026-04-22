@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Sync Job {{ job.job_id }} - Google Keep to Notion Sync{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Sync Job Details</h1>
+            <a href="{% url 'sync_job_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Job Information Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}info{% else %}secondary{% endif %} text-white">
+                <h5 class="mb-0">
+                    Job Information
+                    <span class="badge bg-light text-dark float-end">{{ job.status|upper }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Job ID:</dt>
+                            <dd class="col-sm-8"><code>{{ job.job_id }}</code></dd>
+                            
+                            <dt class="col-sm-4">User ID:</dt>
+                            <dd class="col-sm-8">{{ job.user_id }}</dd>
+                            
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}info{% else %}secondary{% endif %}">
+                                    {{ job.status|upper }}
+                                </span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Sync Type:</dt>
+                            <dd class="col-sm-8">
+                                {% if job.full_sync %}
+                                    <span class="badge bg-primary">Full Sync</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Incremental Sync</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Created:</dt>
+                            <dd class="col-sm-8">{{ job.created_at|date:"Y-m-d H:i:s" }}</dd>
+                            
+                            <dt class="col-sm-4">Completed:</dt>
+                            <dd class="col-sm-8">
+                                {% if job.completed_at %}
+                                    {{ job.completed_at|date:"Y-m-d H:i:s" }}
+                                {% else %}
+                                    <span class="text-muted">Not completed</span>
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-4">Duration:</dt>
+                            <dd class="col-sm-8">
+                                {% if duration %}
+                                    {{ duration }}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                <!-- Error Message -->
+                {% if job.error_message %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-danger">
+                            <strong>Error Message:</strong><br>
+                            {{ job.error_message }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Action Buttons -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <!-- Abort Button for Running/Queued Jobs -->
+                        {% if job.status == 'running' or job.status == 'queued' %}
+                        <form method="post" action="{% url 'abort_sync_job' job.job_id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to abort this sync job?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-x-circle"></i> Abort Sync Job
+                            </button>
+                        </form>
+                        {% endif %}
+                        
+                        <!-- Retry Button for Failed Jobs -->
+                        {% if job.status == 'failed' %}
+                        <form method="post" action="{% url 'retry_sync_job' job.job_id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to retry this sync job?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-arrow-clockwise"></i> Retry Sync Job
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Total Notes</h5>
+                <h2 class="mb-0">{{ job.total_notes }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Processed</h5>
+                <h2 class="mb-0">{{ job.processed_notes }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h5 class="card-title">Failed</h5>
+                <h2 class="mb-0">{{ job.failed_notes }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Success Rate</h5>
+                <h2 class="mb-0">{{ success_rate }}%</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Bar -->
+{% if job.total_notes > 0 %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Progress</h5>
+                <div class="progress" style="height: 30px;">
+                    <div class="progress-bar {% if job.failed_notes > 0 %}bg-warning{% else %}bg-success{% endif %}" 
+                         role="progressbar" 
+                         style="width: {% widthratio job.processed_notes job.total_notes 100 %}%"
+                         aria-valuenow="{{ job.processed_notes }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="{{ job.total_notes }}">
+                        {{ job.processed_notes }} / {{ job.total_notes }} notes
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Sync Logs -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Sync Logs</h5>
+            </div>
+            <div class="card-body">
+                {% if logs_page %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%;">Level</th>
+                                <th style="width: 15%;">Timestamp</th>
+                                <th style="width: 15%;">Note ID</th>
+                                <th style="width: 60%;">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs_page %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-{% if log.level == 'ERROR' %}danger{% elif log.level == 'WARNING' %}warning{% else %}info{% endif %}">
+                                        {{ log.level }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small>{{ log.created_at|date:"Y-m-d H:i:s" }}</small>
+                                </td>
+                                <td>
+                                    {% if log.keep_note_id %}
+                                        <code class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ log.keep_note_id }}">
+                                            {{ log.keep_note_id }}
+                                        </code>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="log-message">{{ log.message }}</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination for logs -->
+                {% if logs_page.has_other_pages %}
+                <nav aria-label="Logs pagination" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if logs_page.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ logs_page.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Page {{ logs_page.number }} of {{ logs_page.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if logs_page.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ logs_page.next_page_number }}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ logs_page.paginator.num_pages }}">Last</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                
+                {% else %}
+                <div class="alert alert-info">
+                    No logs available for this sync job.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        margin-bottom: 1rem;
+    }
+    
+    .card-body h2 {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    
+    .progress {
+        height: 1.5rem;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .log-message {
+        word-wrap: break-word;
+        white-space: pre-wrap;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+    }
+    
+    .text-truncate {
+        display: inline-block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    dl.row {
+        margin-bottom: 0;
+    }
+    
+    dl.row dt {
+        font-weight: 600;
+    }
+    
+    dl.row dd {
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}

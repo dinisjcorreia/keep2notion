@@ -1,318 +1,308 @@
 {% extends "base.html" %}
 
-{% block title %}Sync Job {{ job.job_id }} - Google Keep to Notion Sync{% endblock %}
-
-{% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Sync Job Details</h1>
-            <a href="{% url 'sync_job_list' %}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Back to List
-            </a>
+{% block title %}Job #{{ job.job_id|truncatechars:8 }} - Keep2Notion Admin
+<div class="mt-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+        <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/50">
+            <h2 class="text-sm font-semibold text-slate-800 flex items-center gap-2 dark:text-slate-200">
+                <i data-lucide="terminal" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i>
+                Sync Logs
+            </h2>
         </div>
-    </div>
-</div>
-
-<!-- Job Information Card -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}info{% else %}secondary{% endif %} text-white">
-                <h5 class="mb-0">
-                    Job Information
-                    <span class="badge bg-light text-dark float-end">{{ job.status|upper }}</span>
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <dl class="row">
-                            <dt class="col-sm-4">Job ID:</dt>
-                            <dd class="col-sm-8"><code>{{ job.job_id }}</code></dd>
-                            
-                            <dt class="col-sm-4">User ID:</dt>
-                            <dd class="col-sm-8">{{ job.user_id }}</dd>
-                            
-                            <dt class="col-sm-4">Status:</dt>
-                            <dd class="col-sm-8">
-                                <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}info{% else %}secondary{% endif %}">
-                                    {{ job.status|upper }}
+        
+        <div class="p-0">
+            {% if logs_page %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold w-24">Level</th>
+                            <th class="px-4 py-3 font-semibold w-48">Timestamp</th>
+                            <th class="px-4 py-3 font-semibold w-40">Note ID</th>
+                            <th class="px-4 py-3 font-semibold min-w-full">Message</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                        {% for log in logs_page %}
+                        <tr class="hover/50 transition-colors">
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {% if log.level == 'ERROR' %}bg-rose-100 text-rose-700 elif 'WARNING' %}bg-amber-100 text-amber-700 else %}bg-sky-100 text-sky-700{% endif %} dark:text-rose-400 dark:text-amber-400">
+                                    {{ log.level }}
                                 </span>
-                            </dd>
-                            
-                            <dt class="col-sm-4">Sync Type:</dt>
-                            <dd class="col-sm-8">
-                                {% if job.full_sync %}
-                                    <span class="badge bg-primary">Full Sync</span>
+                            </td>
+                            <td class="px-4 py-3 text-slate-500 dark:text-slate-400">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                                {% if log.keep_note_id %}
+                                    <span class="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 dark:bg-slate-800 dark:border-slate-700">{{ log.keep_note_id|truncatechars:15 }}</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Incremental Sync</span>
+                                    <span class="text-slate-400 dark:text-slate-500">-</span>
                                 {% endif %}
-                            </dd>
-                        </dl>
+                            </td>
+                            <td class="px-4 py-3 text-slate-700 whitespace-normal break-all text-xs font-mono dark:text-slate-300">{{ log.message }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination for logs -->
+            {% if logs_page.has_other_pages %}
+            <div class="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-white sm:px-6 dark:border-slate-700 dark:bg-slate-900">
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">
+                            Showing page <span class="font-medium text-slate-900 dark:text-slate-50">{{ logs_page.number }}</span> of <span class="font-medium text-slate-900 dark:text-slate-50">{{ logs_page.paginator.num_pages }}</span>
+                        </p>
                     </div>
-                    
-                    <div class="col-md-6">
-                        <dl class="row">
-                            <dt class="col-sm-4">Created:</dt>
-                            <dd class="col-sm-8">{{ job.created_at|date:"Y-m-d H:i:s" }}</dd>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if logs_page.has_previous %}
+                            <a href="?page=1" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">First</a>
+                            <a href="?page={{ logs_page.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Previous</a>
+                            {% endif %}
                             
-                            <dt class="col-sm-4">Completed:</dt>
-                            <dd class="col-sm-8">
-                                {% if job.completed_at %}
-                                    {{ job.completed_at|date:"Y-m-d H:i:s" }}
-                                {% else %}
-                                    <span class="text-muted">Not completed</span>
-                                {% endif %}
-                            </dd>
-                            
-                            <dt class="col-sm-4">Duration:</dt>
-                            <dd class="col-sm-8">
-                                {% if duration %}
-                                    {{ duration }}
-                                {% else %}
-                                    <span class="text-muted">N/A</span>
-                                {% endif %}
-                            </dd>
-                        </dl>
-                    </div>
-                </div>
-                
-                <!-- Error Message -->
-                {% if job.error_message %}
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="alert alert-danger">
-                            <strong>Error Message:</strong><br>
-                            {{ job.error_message }}
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-                
-                <!-- Action Buttons -->
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <!-- Abort Button for Running/Queued Jobs -->
-                        {% if job.status == 'running' or job.status == 'queued' %}
-                        <form method="post" action="{% url 'abort_sync_job' job.job_id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to abort this sync job?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger">
-                                <i class="bi bi-x-circle"></i> Abort Sync Job
-                            </button>
-                        </form>
-                        {% endif %}
-                        
-                        <!-- Retry Button for Failed Jobs -->
-                        {% if job.status == 'failed' %}
-                        <form method="post" action="{% url 'retry_sync_job' job.job_id %}" style="display: inline;" onsubmit="return confirm('Are you sure you want to retry this sync job?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-warning">
-                                <i class="bi bi-arrow-clockwise"></i> Retry Sync Job
-                            </button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Progress Statistics -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <h5 class="card-title">Total Notes</h5>
-                <h2 class="mb-0">{{ job.total_notes }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <h5 class="card-title">Processed</h5>
-                <h2 class="mb-0">{{ job.processed_notes }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-danger">
-            <div class="card-body">
-                <h5 class="card-title">Failed</h5>
-                <h2 class="mb-0">{{ job.failed_notes }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <h5 class="card-title">Success Rate</h5>
-                <h2 class="mb-0">{{ success_rate }}%</h2>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Progress Bar -->
-{% if job.total_notes > 0 %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Progress</h5>
-                <div class="progress" style="height: 30px;">
-                    <div class="progress-bar {% if job.failed_notes > 0 %}bg-warning{% else %}bg-success{% endif %}" 
-                         role="progressbar" 
-                         style="width: {% widthratio job.processed_notes job.total_notes 100 %}%"
-                         aria-valuenow="{{ job.processed_notes }}" 
-                         aria-valuemin="0" 
-                         aria-valuemax="{{ job.total_notes }}">
-                        {{ job.processed_notes }} / {{ job.total_notes }} notes
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Sync Logs -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Sync Logs</h5>
-            </div>
-            <div class="card-body">
-                {% if logs_page %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th style="width: 10%;">Level</th>
-                                <th style="width: 15%;">Timestamp</th>
-                                <th style="width: 15%;">Note ID</th>
-                                <th style="width: 60%;">Message</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for log in logs_page %}
-                            <tr>
-                                <td>
-                                    <span class="badge bg-{% if log.level == 'ERROR' %}danger{% elif log.level == 'WARNING' %}warning{% else %}info{% endif %}">
-                                        {{ log.level }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <small>{{ log.created_at|date:"Y-m-d H:i:s" }}</small>
-                                </td>
-                                <td>
-                                    {% if log.keep_note_id %}
-                                        <code class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ log.keep_note_id }}">
-                                            {{ log.keep_note_id }}
-                                        </code>
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="log-message">{{ log.message }}</div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Pagination for logs -->
-                {% if logs_page.has_other_pages %}
-                <nav aria-label="Logs pagination" class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        {% if logs_page.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page=1">First</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ logs_page.previous_page_number }}">Previous</a>
-                            </li>
-                        {% endif %}
-                        
-                        <li class="page-item active">
-                            <span class="page-link">
-                                Page {{ logs_page.number }} of {{ logs_page.paginator.num_pages }}
+                            <span class="relative inline-flex items-center px-4 py-2 border border-slate-300 bg-slate-50 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+                                {{ logs_page.number }}
                             </span>
-                        </li>
-                        
-                        {% if logs_page.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ logs_page.next_page_number }}">Next</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ logs_page.paginator.num_pages }}">Last</a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                {% endif %}
-                
-                {% else %}
-                <div class="alert alert-info">
-                    No logs available for this sync job.
+                            
+                            {% if logs_page.has_next %}
+                            <a href="?page={{ logs_page.next_page_number }}" class="relative inline-flex items-center px-2 py-2 border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Next</a>
+                            <a href="?page={{ logs_page.paginator.num_pages }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Last</a>
+                            {% endif %}
+                        </nav>
+                    </div>
                 </div>
-                {% endif %}
             </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="p-8 text-center text-slate-500 text-sm dark:text-slate-400">
+                <i data-lucide="file-question" class="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600"></i>
+                No logs available for this sync job execution.
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
 {% endblock %}
 
-{% block extra_css %}
-<style>
-    .card {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        margin-bottom: 1rem;
-    }
-    
-    .card-body h2 {
-        font-size: 2.5rem;
-        font-weight: bold;
-    }
-    
-    .progress {
-        height: 1.5rem;
-    }
-    
-    .table td {
-        vertical-align: middle;
-    }
-    
-    .log-message {
-        word-wrap: break-word;
-        white-space: pre-wrap;
-        font-family: 'Courier New', monospace;
-        font-size: 0.9em;
-    }
-    
-    .text-truncate {
-        display: inline-block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    
-    dl.row {
-        margin-bottom: 0;
-    }
-    
-    dl.row dt {
-        font-weight: 600;
-    }
-    
-    dl.row dd {
-        margin-bottom: 0.5rem;
-    }
-</style>
+
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'sync_job_list' %}" class="inline-flex items-center text-sm font-medium text-slate-500 hover:text-white transition-colors mb-4 dark:text-slate-400">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Back to Jobs
+    </a>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-3 dark:text-slate-50">
+                Job Details 
+                <span class="text-slate-400 text-lg font-normal dark:text-slate-500">#{{ job.job_id }}</span>
+            </h1>
+        </div>
+<a href="{% url 'manual_sync_trigger' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-white text-slate-700 border border-slate-300 rounded-lg shadow-sm hover transition-all dark:bg-slate-900 dark:text-slate-300 dark:border-slate-600">
+            <i data-lucide="rotate-cw" class="w-4 h-4"></i> Rerun Manual Sync
+        </a>
+        
+        {% if job.status == 'running' or job.status == 'queued' %}
+        <form method="post" action="{% url 'abort_sync_job' job.job_id %}" onsubmit="return confirm('Are you sure you want to abort this sync job?');" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-rose-50 text-rose-700 border border-rose-200 rounded-lg shadow-sm hover:bg-rose-100 transition-all dark:bg-rose-500/5 dark:text-rose-400 dark:border-rose-500/20">
+                <i data-lucide="x-circle" class="w-4 h-4"></i> Abort Job
+            </button>
+        </form>
+        {% endif %}
+
+        {% if job.status == 'failed' %}
+        <form method="post" action="{% url 'retry_sync_job' job.job_id %}" onsubmit="return confirm('Are you sure you want to retry this sync job?');" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-lg shadow-sm hover:bg-amber-100 transition-all dark:bg-amber-500/5 dark:text-amber-400 dark:border-amber-500/20">
+                <i data-lucide="refresh-ccw" class="w-4 h-4"></i> Retry Failed Job
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Info Box -->
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+            <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center dark:border-slate-700 dark:bg-slate-900/50">
+                <h2 class="text-sm font-semibold text-slate-800 flex items-center gap-2 dark:text-slate-200">
+                    <i data-lucide="info" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i>
+                    Execution Summary
+                </h2>
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {% if job.status == 'completed' %}bg-emerald-100 text-emerald-700 elif 'failed' %}bg-rose-100 text-rose-700 'running' %}bg-amber-100 text-amber-700 else %}bg-slate-100 text-slate-700{% endif %} dark:text-emerald-400 dark:text-rose-400 dark:text-amber-400">
+                    {{ job.status|upper }}
+                </span>
+            </div>
+            
+            <div class="grid grid-cols-2 divide-x divide-y divide-slate-100 md:grid-cols-4 md:divide-y-0 dark:divide-slate-800">
+                <div class="p-4">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 dark:text-slate-400">Items Processed</div>
+                    <div class="text-xl font-semibold text-slate-900 dark:text-slate-50">{{ items_processed }}</div>
+                </div>
+                <div class="p-4">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 dark:text-slate-400">Items Synced</div>
+                    <div class="text-xl font-semibold text-emerald-600 dark:text-emerald-400">{{ items_synced }}</div>
+                </div>
+                <div class="p-4">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 dark:text-slate-400">Errors</div>
+                    <div class="text-xl font-semibold text-rose-600 dark:text-rose-400">{{ error_count }}</div>
+                </div>
+                <div class="p-4">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 dark:text-slate-400">Sync Type</div>
+                    <div class="text-base mt-0.5 font-medium text-slate-700 capitalize dark:text-slate-300">{{ sync_type_label }}</div>
+                </div>
+            </div>
+        </div>
+
+        {% if job.error_message %}
+        <div class="bg-white rounded-xl shadow-sm border border-rose-200 overflow-hidden dark:bg-slate-900 dark:border-rose-500/20">
+            <div class="px-6 py-4 border-b border-rose-100 bg-rose-50 flex items-center gap-2 text-rose-800 font-semibold dark:border-rose-500/20 dark:bg-rose-500/5 dark:text-rose-400">
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                Error Log
+            </div>
+            <div class="p-0 bg-slate-900 dark:bg-slate-950">
+                <pre class="p-6 text-sm text-rose-300 font-mono whitespace-pre-wrap rounded-b-xl overflow-x-auto">{{ job.error_message }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Metadata Sidebar -->
+    <div class="space-y-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+            <div class="px-5 py-4 border-b border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-900/50">
+                <h2 class="text-sm font-semibold text-slate-800 flex items-center gap-2 dark:text-slate-200">
+                    <i data-lucide="cpu" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i> Metadata
+                </h2>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <div class="text-xs text-slate-500 font-medium mb-1 dark:text-slate-400">Started At</div>
+                    <div class="text-sm text-slate-800 dark:text-slate-200">{{ job.created_at|date:"F j, Y, P" }}</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 font-medium mb-1 dark:text-slate-400">Completed At</div>
+                    <div class="text-sm text-slate-800 dark:text-slate-200">
+                        {% if job.completed_at %}
+                        {{ job.completed_at|date:"F j, Y, P" }}
+                        {% else %}
+                        <span class="text-slate-400 italic dark:text-slate-500">Still running...</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 font-medium mb-1 dark:text-slate-400">Duration</div>
+                    <div class="text-sm text-slate-800 dark:text-slate-200">{{ duration|default:"-" }} s</div>
+                </div>
+                <hr class="border-slate-100 border-dashed dark:border-slate-800">
+                <div>
+                    <div class="text-xs text-slate-500 font-medium mb-1 dark:text-slate-400">User ID</div>
+                    <div class="text-sm font-mono text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100 break-all dark:text-slate-400 dark:bg-slate-800/50 dark:border-slate-800">{{ job.user_id }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+        <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/50">
+            <h2 class="text-sm font-semibold text-slate-800 flex items-center gap-2 dark:text-slate-200">
+                <i data-lucide="terminal" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i>
+                Sync Logs
+            </h2>
+        </div>
+        
+        <div class="p-0">
+            {% if logs_page %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold w-24">Level</th>
+                            <th class="px-4 py-3 font-semibold w-48">Timestamp</th>
+                            <th class="px-4 py-3 font-semibold w-40">Note ID</th>
+                            <th class="px-4 py-3 font-semibold min-w-full">Message</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                        {% for log in logs_page %}
+                        <tr class="hover/50 transition-colors">
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {% if log.level == 'ERROR' %}bg-rose-100 text-rose-700 elif 'WARNING' %}bg-amber-100 text-amber-700 else %}bg-sky-100 text-sky-700{% endif %} dark:text-rose-400 dark:text-amber-400">
+                                    {{ log.level }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-slate-500 dark:text-slate-400">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                                {% if log.keep_note_id %}
+                                    <span class="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 dark:bg-slate-800 dark:border-slate-700">{{ log.keep_note_id|truncatechars:15 }}</span>
+                                {% else %}
+                                    <span class="text-slate-400 dark:text-slate-500">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-slate-700 whitespace-normal break-all text-xs font-mono dark:text-slate-300">{{ log.message }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination for logs -->
+            {% if logs_page.has_other_pages %}
+            <div class="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-white sm:px-6 dark:border-slate-700 dark:bg-slate-900">
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">
+                            Showing page <span class="font-medium text-slate-900 dark:text-slate-50">{{ logs_page.number }}</span> of <span class="font-medium text-slate-900 dark:text-slate-50">{{ logs_page.paginator.num_pages }}</span>
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if logs_page.has_previous %}
+                            <a href="?page=1" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">First</a>
+                            <a href="?page={{ logs_page.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Previous</a>
+                            {% endif %}
+                            
+                            <span class="relative inline-flex items-center px-4 py-2 border border-slate-300 bg-slate-50 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+                                {{ logs_page.number }}
+                            </span>
+                            
+                            {% if logs_page.has_next %}
+                            <a href="?page={{ logs_page.next_page_number }}" class="relative inline-flex items-center px-2 py-2 border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Next</a>
+                            <a href="?page={{ logs_page.paginator.num_pages }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-300 bg-white text-sm font-medium text-slate-500 hover dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Last</a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="p-8 text-center text-slate-500 text-sm dark:text-slate-400">
+                <i data-lucide="file-question" class="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600"></i>
+                No logs available for this sync job execution.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+{% if job.status == 'running' or job.status == 'queued' %}
+<script>
+    // Auto-refresh the page every 3 seconds while the job is running
+    setTimeout(function() {
+        window.location.reload();
+    }, 3000);
+</script>
+{% endif %}
 {% endblock %}

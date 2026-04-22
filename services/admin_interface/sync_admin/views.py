@@ -191,11 +191,16 @@ def sync_job_detail(request, job_id):
     if job.completed_at and job.created_at:
         duration = job.completed_at - job.created_at
     
+    # Build summary values used by the detail template.
+    items_synced = job.processed_notes or 0
+    error_count = job.failed_notes or 0
+    items_processed = items_synced + error_count
+
     # Calculate success rate
     success_rate = 0
     if job.total_notes > 0:
         success_rate = round(
-            ((job.processed_notes - job.failed_notes) / job.total_notes) * 100, 1
+            (items_synced / job.total_notes) * 100, 1
         )
     
     context = {
@@ -203,6 +208,10 @@ def sync_job_detail(request, job_id):
         'logs_page': logs_page,
         'duration': duration,
         'success_rate': success_rate,
+        'items_processed': items_processed,
+        'items_synced': items_synced,
+        'error_count': error_count,
+        'sync_type_label': 'Full' if job.full_sync else 'Incremental',
     }
     
     return render(request, 'sync_job_detail.html', context)

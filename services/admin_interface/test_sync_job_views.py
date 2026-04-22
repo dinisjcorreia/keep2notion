@@ -176,6 +176,26 @@ class SyncJobViewsTest(TestCase):
             self.assertContains(response, log.message)
         
         print(f"✓ Logs displayed correctly ({logs.count()} logs)")
+
+    def test_sync_job_detail_summary_uses_progress_fields(self):
+        """Test detail summary uses actual sync job progress counters."""
+        job = SyncJob.objects.create(
+            job_id=uuid4(),
+            user_id='progress_user',
+            status='running',
+            full_sync=False,
+            total_notes=10,
+            processed_notes=6,
+            failed_notes=2,
+        )
+
+        response = self.client.get(reverse('sync_job_detail', args=[job.job_id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['items_processed'], 8)
+        self.assertEqual(response.context['items_synced'], 6)
+        self.assertEqual(response.context['error_count'], 2)
+        self.assertEqual(response.context['sync_type_label'], 'Incremental')
     
     def test_sync_job_detail_failed_job(self):
         """Test sync job detail view for failed job shows retry button."""

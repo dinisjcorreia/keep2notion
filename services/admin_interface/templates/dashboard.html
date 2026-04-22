@@ -1,259 +1,214 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Google Keep to Notion Sync{% endblock %}
+{% block title %}Dashboard - Keep2Notion Admin{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-4">Dashboard</h1>
+<div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-50">Dashboard Overview</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Monitor the health and metrics of your sync pipeline.</p>
+    </div>
+    <div class="flex gap-3">
+        <a href="{% url 'manual_sync_trigger' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg shadow-sm hover:bg-brand-700 focus:ring-4 focus:ring-brand-500/30 transition-all">
+            <i data-lucide="play" class="w-4 h-4"></i>
+            Trigger Sync
+        </a>
+        <a href="{% url 'sync_job_list' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-4 focus:ring-slate-100 dark:focus:ring-slate-800 transition-all">
+            <i data-lucide="list" class="w-4 h-4"></i>
+            View Jobs
+        </a>
     </div>
 </div>
 
-<!-- System Health Status -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-{% if health_status.overall == 'healthy' %}success{% else %}warning{% endif %} text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-heart-pulse"></i> System Health Status
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center">
-                            <span class="badge bg-{% if health_status.overall == 'healthy' %}success{% else %}warning{% endif %} me-2">
-                                {{ health_status.overall|upper }}
-                            </span>
-                            <strong>Overall Status</strong>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center">
-                            <span class="badge bg-{% if health_status.database == 'up' %}success{% else %}danger{% endif %} me-2">
-                                {{ health_status.database|upper }}
-                            </span>
-                            <strong>Database</strong>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex align-items-center">
-                            <span class="badge bg-{% if health_status.sync_service == 'up' %}success{% elif health_status.sync_service == 'down' %}danger{% else %}secondary{% endif %} me-2">
-                                {{ health_status.sync_service|upper }}
-                            </span>
-                            <strong>Sync Service</strong>
-                        </div>
-                    </div>
+<!-- System Health -->
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8 overflow-hidden">
+    <div class="border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-6 py-4 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <i data-lucide="activity" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i>
+            System Health Status
+        </h2>
+        <span class="flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-brand-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-brand-500"></span>
+        </span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
+        <div class="p-6 flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Overall Status</p>
+                <div class="mt-2 flex items-center gap-2">
+                    {% if health_status.overall == 'healthy' %}
+                        <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                        <span class="text-lg font-semibold text-slate-900 dark:text-white">All Systems Go</span>
+                    {% else %}
+                        <div class="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+                        <span class="text-lg font-semibold text-slate-900 dark:text-white">Issues Detected</span>
+                    {% endif %}
                 </div>
             </div>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {% if health_status.overall == 'healthy' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400{% else %}bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400{% endif %}">
+                {{ health_status.overall|upper }}
+            </span>
         </div>
-    </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <a href="{% url 'manual_sync_trigger' %}" class="btn btn-primary btn-lg">
-                    <i class="bi bi-play-circle"></i> Trigger Manual Sync
-                </a>
-                <a href="{% url 'sync_job_list' %}" class="btn btn-outline-secondary btn-lg ms-2">
-                    <i class="bi bi-list"></i> View All Sync Jobs
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <h5 class="card-title">Total Jobs</h5>
-                <h2 class="mb-0">{{ stats.total_jobs }}</h2>
-                <small>All time</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <h5 class="card-title">Successful</h5>
-                <h2 class="mb-0">{{ stats.successful_jobs }}</h2>
-                <small>{{ stats.success_rate }}% success rate</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-danger">
-            <div class="card-body">
-                <h5 class="card-title">Failed</h5>
-                <h2 class="mb-0">{{ stats.failed_jobs }}</h2>
-                <small>Requires attention</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <h5 class="card-title">Active</h5>
-                <h2 class="mb-0">{{ stats.running_jobs }}</h2>
-                <small>{{ stats.queued_jobs }} queued</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Additional Statistics -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Jobs (Last 24h)</h5>
-                <h2 class="mb-0">{{ stats.jobs_last_24h }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Total Notes Synced</h5>
-                <h2 class="mb-0">{{ stats.total_notes_synced }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Active Users</h5>
-                <h2 class="mb-0">{{ stats.total_users }}</h2>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Sync Jobs -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Recent Sync Jobs</h5>
-            </div>
-            <div class="card-body">
-                {% if recent_jobs %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>Job ID</th>
-                                <th>User ID</th>
-                                <th>Status</th>
-                                <th>Type</th>
-                                <th>Progress</th>
-                                <th>Created</th>
-                                <th>Completed</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for job in recent_jobs %}
-                            <tr>
-                                <td>
-                                    <code>{{ job.job_id|truncatechars:13 }}</code>
-                                </td>
-                                <td>{{ job.user_id }}</td>
-                                <td>
-                                    <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}info{% else %}secondary{% endif %}">
-                                        {{ job.status|upper }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% if job.full_sync %}
-                                        <span class="badge bg-primary">Full</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Incremental</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if job.total_notes > 0 %}
-                                        <div class="progress" style="min-width: 100px;">
-                                            <div class="progress-bar {% if job.failed_notes > 0 %}bg-warning{% endif %}" 
-                                                 role="progressbar" 
-                                                 style="width: {% widthratio job.processed_notes job.total_notes 100 %}%"
-                                                 aria-valuenow="{{ job.processed_notes }}" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="{{ job.total_notes }}">
-                                                {{ job.processed_notes }}/{{ job.total_notes }}
-                                            </div>
-                                        </div>
-                                        {% if job.failed_notes > 0 %}
-                                            <small class="text-danger">{{ job.failed_notes }} failed</small>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="text-muted">N/A</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <small>{{ job.created_at|date:"Y-m-d H:i" }}</small>
-                                </td>
-                                <td>
-                                    {% if job.completed_at %}
-                                        <small>{{ job.completed_at|date:"Y-m-d H:i" }}</small>
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{% url 'sync_job_detail' job.job_id %}" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        View
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        <div class="p-6 flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Database</p>
+                <div class="mt-2 flex items-center gap-2">
+                    <div class="w-2.5 h-2.5 rounded-full {% if health_status.database == 'connected' %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></div>
+                    <span class="text-lg font-semibold text-slate-900 dark:text-white">PostgreSQL</span>
                 </div>
-                <div class="mt-3">
-                    <a href="{% url 'sync_job_list' %}" class="btn btn-primary">
-                        View All Sync Jobs
-                    </a>
-                </div>
-                {% else %}
-                <div class="alert alert-info">
-                    No sync jobs found. Start your first sync job to see it here.
-                </div>
-                {% endif %}
             </div>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {% if health_status.database == 'connected' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400{% else %}bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400{% endif %}">
+                {{ health_status.database|upper }}
+            </span>
+        </div>
+        <div class="p-6 flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Sync Service</p>
+                <div class="mt-2 flex items-center gap-2">
+                    <div class="w-2.5 h-2.5 rounded-full {% if health_status.sync_service == 'online' %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></div>
+                    <span class="text-lg font-semibold text-slate-900 dark:text-white">Go Backend</span>
+                </div>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {% if health_status.sync_service == 'online' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400{% else %}bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400{% endif %}">
+                {{ health_status.sync_service|upper }}
+            </span>
         </div>
     </div>
 </div>
 
-{% endblock %}
+<!-- Core Metrics -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between">
+        <div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Executions</div>
+            <div class="text-3xl font-bold text-slate-900 dark:text-white">{{ stats.total_jobs }}</div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-brand-600 dark:text-brand-400 font-medium flex items-center">
+                {{ stats.jobs_last_24h }} today
+            </span>
+        </div>
+    </div>
 
-{% block extra_css %}
-<style>
-    .card {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        margin-bottom: 1rem;
-    }
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between">
+        <div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Successful Syncs</div>
+            <div class="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats.successful_jobs }}</div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-slate-500 dark:text-slate-400">
+                Success rate: <span class="font-medium text-slate-700 dark:text-slate-200">{{ stats.success_rate }}%</span>
+            </span>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between">
+        <div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Failed Executions</div>
+            <div class="text-3xl font-bold text-rose-600 dark:text-rose-400">{{ stats.failed_jobs }}</div>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-slate-500 dark:text-slate-400">
+            {% if stats.failed_jobs > 0 %}
+                Requires attention
+            {% else %}
+                No errors recorded
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between relative overflow-hidden">
+        <!-- Background decorative wave -->
+        <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-50 rounded-full opacity-50 dark:opacity-5"></div>
+        <div class="relative z-10">
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Active Pipeline</div>
+            <div class="text-3xl font-bold text-brand-600 dark:text-brand-400">{{ stats.running_jobs }}</div>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-slate-500 dark:text-slate-400 relative z-10">
+            <span>{{ stats.queued_jobs }} queued for execution</span>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex items-center gap-4">
+        <div class="p-3 bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-lg">
+            <i data-lucide="file-text" class="w-6 h-6"></i>
+        </div>
+        <div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Notes Synced Globally</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">{{ stats.total_notes_synced }}</div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex items-center gap-4">
+        <div class="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
+            <i data-lucide="users" class="w-6 h-6"></i>
+        </div>
+        <div>
+            <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Active Users</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">{{ stats.total_users }} accounts</div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Jobs Table -->
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
+    <div class="border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-6 py-4 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <i data-lucide="history" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i>
+            Recent Executions
+        </h2>
+        <a href="{% url 'sync_job_list' %}" class="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">View complete log &rarr;</a>
+    </div>
     
-    .card-body h2 {
-        font-size: 2.5rem;
-        font-weight: bold;
-    }
-    
-    .progress {
-        height: 1.5rem;
-    }
-    
-    .table td {
-        vertical-align: middle;
-    }
-</style>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                    <th class="px-6 py-3 font-semibold">Job ID</th>
+                    <th class="px-6 py-3 font-semibold">User</th>
+                    <th class="px-6 py-3 font-semibold">Status</th>
+                    <th class="px-6 py-3 font-semibold">Start Time</th>
+                    <th class="px-6 py-3 font-semibold text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                {% for job in recent_jobs %}
+                <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                    <td class="px-6 py-4 font-mono text-xs text-slate-600 dark:text-slate-400">
+                        {{ job.job_id|truncatechars:15 }}
+                    </td>
+                    <td class="px-6 py-4 text-slate-700 dark:text-slate-300">{{ job.user_id }}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if job.status == 'completed' %}bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400
+                            {% elif job.status == 'failed' %}bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400
+                            {% elif job.status == 'running' %}bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400
+                            {% else %}bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300{% endif %}">
+                            {{ job.status|title }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-slate-500 dark:text-slate-400">{{ job.created_at|date:"M j, H:i" }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'sync_job_detail' job.job_id %}" class="inline-flex items-center justify-center p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded transition-colors" title="View details">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
+                                <i data-lucide="inbox" class="w-6 h-6 text-slate-400"></i>
+                            </div>
+                            <p>No synchronization jobs have been executed yet.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}
