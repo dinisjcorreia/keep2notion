@@ -20,7 +20,7 @@
             <div class="card-body">
                 <p class="text-muted">
                     Use this form to manually trigger a synchronization job between Google Keep and Notion.
-                    Select a user and the type of sync you want to perform.
+                    Select a user, the sync type, and the fallback database name for notes without tags.
                 </p>
 
                 <form method="post" action="{% url 'manual_sync_trigger' %}">
@@ -57,6 +57,25 @@
                         <div class="form-text">
                             <strong>Incremental:</strong> Only sync notes that have been modified since the last sync.<br>
                             <strong>Full:</strong> Sync all notes, regardless of previous sync state.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="main_database_name" class="form-label">
+                            <strong>Main Database Name</strong>
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="main_database_name"
+                            name="main_database_name"
+                            value="Keep"
+                            required
+                            placeholder="e.g. Keep"
+                        >
+                        <div class="form-text">
+                            Notes without Google Keep tags go into this database. Tagged notes use the first matching tag name as the Notion database name.
                         </div>
                     </div>
 

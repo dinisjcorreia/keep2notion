@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
+from sqlalchemy import text
 
 # Add shared module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
@@ -124,7 +125,7 @@ async def health_check():
     db_healthy = False
     try:
         with db_ops.get_session() as session:
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
         db_healthy = True
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
@@ -175,6 +176,7 @@ class SyncExecuteRequest(BaseModel):
     user_id: str
     full_sync: bool = False
     job_id: Optional[str] = None  # Optional - will be generated if not provided
+    main_database_name: Optional[str] = None
 
 
 class SyncExecuteResponse(BaseModel):
@@ -226,6 +228,17 @@ async def execute_sync(request: SyncExecuteRequest, background_tasks: Background
         job_id = uuid.uuid4()
     
     logger.info(f"Received sync execute request for job {job_id}, user {request.user_id}")
+
+    # Ensure the sync job exists for callers that hit the internal endpoint directly
+    # (for example the Django admin interface). The public API gateway already creates
+    # the row first, so we only insert when missing.
+    existing_job = db_ops.get_sync_job(job_id)
+    if not existing_job:
+        db_ops.create_sync_job(
+            job_id=job_id,
+            user_id=request.user_id,
+            full_sync=request.full_sync
+        )
     
     # Create orchestrator
     orchestrator = SyncOrchestrator(
@@ -240,7 +253,8 @@ async def execute_sync(request: SyncExecuteRequest, background_tasks: Background
         orchestrator.execute_sync,
         job_id=job_id,
         user_id=request.user_id,
-        full_sync=request.full_sync
+        full_sync=request.full_sync,
+        main_database_name=request.main_database_name
     )
     
     # Return immediately with job_id

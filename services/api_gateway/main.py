@@ -263,6 +263,7 @@ class SyncStartRequest(BaseModel):
     """Request model for starting a sync job."""
     user_id: str = Field(..., description="User ID to sync notes for")
     full_sync: bool = Field(default=False, description="True for full sync, False for incremental")
+    main_database_name: Optional[str] = Field(default=None, description="Fallback Notion database name for notes without tags")
 
 
 class SyncStartResponse(BaseModel):
@@ -352,7 +353,8 @@ async def start_sync(request: SyncStartRequest, api_key: str = Depends(verify_ap
             json={
                 "job_id": str(job_id),
                 "user_id": request.user_id,
-                "full_sync": request.full_sync
+                "full_sync": request.full_sync,
+                "main_database_name": request.main_database_name
             },
             timeout=5.0  # Short timeout for initial request
         )

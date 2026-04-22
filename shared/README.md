@@ -5,7 +5,7 @@ This package contains common data models and utilities used across all microserv
 ## Contents
 
 - **models.py**: Shared data models (KeepNote, ImageAttachment, SyncJobRequest, etc.)
-- **config.py**: Configuration utilities for environment variables and AWS settings
+- **config.py**: Configuration utilities for environment variables and storage settings
 
 ## Usage
 
@@ -13,7 +13,7 @@ All services import from this shared package:
 
 ```python
 from shared.models import KeepNote, SyncJobRequest
-from shared.config import get_database_url, get_aws_config
+from shared.config import get_database_url, get_supabase_storage_config
 ```
 
 ## Data Models
@@ -22,7 +22,7 @@ from shared.config import get_database_url, get_aws_config
 Represents a note from Google Keep with title, content, timestamps, labels, and images.
 
 ### ImageAttachment
-Represents an image attachment with S3 URL and metadata.
+Represents an image attachment with external storage URL and metadata.
 
 ### SyncJobRequest
 Request object for initiating a sync job.
@@ -39,4 +39,4 @@ The `config.py` module provides utilities for accessing environment variables:
 
 - `get_env()`: Get environment variable with optional default and validation
 - `get_database_url()`: Get PostgreSQL connection string
-- `get_aws_config()`: Get AWS configuration (region, S3 bucket, credentials)
+- `get_supabase_storage_config()`: Get Supabase Storage configuration

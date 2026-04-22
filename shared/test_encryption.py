@@ -32,19 +32,24 @@ class TestEncryptionService:
         assert service.cipher is not None
     
     def test_initialization_with_env_key(self):
-        """Test that EncryptionService loads key from environment variable."""
+        """Test that EncryptionService loads key from ENCRYPTION_KEY."""
         test_key = Fernet.generate_key().decode()
         
-        with patch.dict(os.environ, {'AWS_ENCRYPTION_KEY': test_key}):
+        with patch.dict(os.environ, {'ENCRYPTION_KEY': test_key}, clear=True):
+            service = EncryptionService()
+            assert service.key == test_key.encode()
+
+    def test_initialization_with_legacy_env_key(self):
+        """Test that EncryptionService still supports AWS_ENCRYPTION_KEY."""
+        test_key = Fernet.generate_key().decode()
+
+        with patch.dict(os.environ, {'AWS_ENCRYPTION_KEY': test_key}, clear=True):
             service = EncryptionService()
             assert service.key == test_key.encode()
     
     def test_initialization_generates_key_if_none_provided(self):
         """Test that EncryptionService generates a key if none provided."""
         with patch.dict(os.environ, {}, clear=True):
-            # Remove AWS_ENCRYPTION_KEY if it exists
-            os.environ.pop('AWS_ENCRYPTION_KEY', None)
-            
             service = EncryptionService()
             
             # Verify a key was generated
@@ -229,15 +234,14 @@ class TestEncryptionService:
         assert service.decrypt(encrypted_google) == google_token
         assert service.decrypt(encrypted_notion) == notion_token
     
-    def test_encryption_with_aws_secrets_manager_key(self):
-        """Test encryption using a key from AWS Secrets Manager (simulated).
+    def test_encryption_with_env_managed_key(self):
+        """Test encryption using an environment-managed key.
         
         **Validates: Requirements 10.1, 8.4**
         """
-        # Simulate a key from AWS Secrets Manager
-        aws_key = Fernet.generate_key().decode()
+        env_key = Fernet.generate_key().decode()
         
-        with patch.dict(os.environ, {'AWS_ENCRYPTION_KEY': aws_key}):
+        with patch.dict(os.environ, {'ENCRYPTION_KEY': env_key}, clear=True):
             service = EncryptionService()
             
             plaintext = "oauth_token_from_google"

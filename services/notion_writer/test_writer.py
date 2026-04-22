@@ -24,6 +24,12 @@ class TestNotionWriter:
         mock_client = Mock()
         mock_client.pages = Mock()
         mock_client.blocks = Mock()
+        mock_client.databases = Mock()
+        mock_client.databases.retrieve.return_value = {
+            "properties": {
+                "Name": {"type": "title"}
+            }
+        }
         return mock_client
 
     @pytest.fixture
@@ -146,16 +152,44 @@ class TestNotionWriter:
         
         # Should have 1 paragraph + 2 images = 3 blocks
         assert len(children) == 3
-        
-        # Check paragraph block
-        assert children[0]["type"] == "paragraph"
-        
-        # Check image blocks
+
+        # Check image blocks first
+        assert children[0]["type"] == "image"
+        assert children[0]["image"]["external"]["url"] == "https://s3.amazonaws.com/bucket/img1.jpg"
+
         assert children[1]["type"] == "image"
-        assert children[1]["image"]["external"]["url"] == "https://s3.amazonaws.com/bucket/img1.jpg"
-        
-        assert children[2]["type"] == "image"
-        assert children[2]["image"]["external"]["url"] == "https://s3.amazonaws.com/bucket/img2.png"
+        assert children[1]["image"]["external"]["url"] == "https://s3.amazonaws.com/bucket/img2.png"
+
+        # Text now comes after images
+        assert children[2]["type"] == "paragraph"
+
+    @pytest.mark.asyncio
+    async def test_create_page_chunks_children_over_100(self, writer, mock_notion_client):
+        """Test page creation splits large child block payloads into safe chunks."""
+        mock_notion_client.pages.create.return_value = {
+            "id": "page_big",
+            "url": "https://notion.so/page_big"
+        }
+        mock_notion_client.blocks.children.append.return_value = {}
+
+        lines = [f"Line {i}" for i in range(105)]
+        note = {
+            "title": "Big Note",
+            "content": "\n".join(lines),
+            "created_at": "2024-01-01T10:00:00",
+            "labels": [],
+            "images": []
+        }
+
+        result = await writer.create_page(database_id="db123", note=note)
+
+        assert result["page_id"] == "page_big"
+        create_children = mock_notion_client.pages.create.call_args.kwargs["children"]
+        assert len(create_children) == 100
+
+        mock_notion_client.blocks.children.append.assert_called_once()
+        append_children = mock_notion_client.blocks.children.append.call_args.kwargs["children"]
+        assert len(append_children) == 5
 
     @pytest.mark.asyncio
     async def test_create_page_multiline_content(self, writer, mock_notion_client):
@@ -315,8 +349,32 @@ class TestNotionWriter:
         
         # Should have 1 paragraph + 1 image
         assert len(children) == 2
-        assert children[0]["type"] == "paragraph"
-        assert children[1]["type"] == "image"
+        assert children[0]["type"] == "image"
+        assert children[1]["type"] == "paragraph"
+
+    @pytest.mark.asyncio
+    async def test_update_page_chunks_children_over_100(self, writer, mock_notion_client):
+        """Test page updates append large payloads in multiple requests."""
+        mock_notion_client.pages.update.return_value = {"id": "page_chunked"}
+        mock_notion_client.blocks.children.append.return_value = {}
+
+        lines = [f"Line {i}" for i in range(205)]
+        note = {
+            "title": "Updated Big Note",
+            "content": "\n".join(lines),
+            "created_at": "2024-01-01T10:00:00",
+            "labels": [],
+            "images": []
+        }
+
+        result = await writer.update_page(page_id="page_chunked", note=note)
+
+        assert result["updated"] is True
+        assert mock_notion_client.blocks.children.append.call_count == 3
+        append_calls = mock_notion_client.blocks.children.append.call_args_list
+        assert len(append_calls[0].kwargs["children"]) == 100
+        assert len(append_calls[1].kwargs["children"]) == 100
+        assert len(append_calls[2].kwargs["children"]) == 5
 
     @pytest.mark.asyncio
     async def test_update_page_empty_content(self, writer, mock_notion_client):
@@ -372,6 +430,12 @@ class TestNotionWriterRateLimit:
         mock_client = Mock()
         mock_client.pages = Mock()
         mock_client.blocks = Mock()
+        mock_client.databases = Mock()
+        mock_client.databases.retrieve.return_value = {
+            "properties": {
+                "Name": {"type": "title"}
+            }
+        }
         return mock_client
 
     @pytest.fixture
@@ -608,11 +672,11 @@ class TestBuildContentBlocks:
         blocks = writer._build_content_blocks(note)
         
         assert len(blocks) == 3  # 1 paragraph + 2 images
-        assert blocks[0]["type"] == "paragraph"
+        assert blocks[0]["type"] == "image"
+        assert blocks[0]["image"]["external"]["url"] == "https://s3.aws.com/img1.jpg"
         assert blocks[1]["type"] == "image"
-        assert blocks[1]["image"]["external"]["url"] == "https://s3.aws.com/img1.jpg"
-        assert blocks[2]["type"] == "image"
-        assert blocks[2]["image"]["external"]["url"] == "https://s3.aws.com/img2.jpg"
+        assert blocks[1]["image"]["external"]["url"] == "https://s3.aws.com/img2.jpg"
+        assert blocks[2]["type"] == "paragraph"
 
     def test_build_blocks_empty_content(self):
         """Test building blocks with empty content."""
@@ -646,3 +710,175 @@ class TestBuildContentBlocks:
         
         assert len(blocks) == 1
         assert blocks[0]["type"] == "image"
+
+    def test_build_blocks_skips_images_without_url(self):
+        """Test images without public URLs are ignored."""
+        writer = NotionWriter(api_token="test_token")
+
+        note = {
+            "title": "Test",
+            "content": "Text content",
+            "labels": [],
+            "images": [
+                {"id": "img1", "s3_url": None, "filename": "img1.jpg"},
+                {"id": "img2", "s3_url": "https://s3.aws.com/img2.jpg", "filename": "img2.jpg"}
+            ]
+        }
+
+        blocks = writer._build_content_blocks(note)
+
+        assert len(blocks) == 2
+        assert blocks[0]["type"] == "image"
+        assert blocks[0]["image"]["external"]["url"] == "https://s3.aws.com/img2.jpg"
+        assert blocks[1]["type"] == "paragraph"
+
+
+class TestResolveTargetDatabase:
+    """Tests for tag-aware database resolution."""
+
+    @pytest.fixture
+    def mock_notion_client(self):
+        """Create a mock Notion client."""
+        mock_client = Mock()
+        mock_client.pages = Mock()
+        mock_client.blocks = Mock()
+        mock_client.databases = Mock()
+        mock_client.search = Mock()
+        return mock_client
+
+    @pytest.fixture
+    def writer(self, mock_notion_client):
+        """Create a NotionWriter instance with mocked client."""
+        with patch('writer.Client', return_value=mock_notion_client):
+            notion_writer = NotionWriter(api_token="test_token")
+            notion_writer.client = mock_notion_client
+            return notion_writer
+
+    @pytest.mark.asyncio
+    async def test_resolve_target_database_reuses_existing_main_database(self, writer, mock_notion_client):
+        """Test root database is reused when its title matches the main database name."""
+        main_db_id = "1234567890abcdef1234567890abcdef"
+        parent_page_id = "abcdef1234567890abcdef1234567890"
+        mock_notion_client.databases.retrieve.return_value = {
+            "id": main_db_id,
+            "title": [{"plain_text": "Keep"}],
+            "parent": {"type": "page_id", "page_id": parent_page_id}
+        }
+
+        result = await writer.resolve_target_database(
+            root_reference=main_db_id,
+            labels=[],
+            main_database_name="Keep"
+        )
+
+        assert result["database_id"] == main_db_id
+        assert result["created"] is False
+        mock_notion_client.search.assert_not_called()
+        mock_notion_client.databases.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_resolve_target_database_finds_existing_tag_database(self, writer, mock_notion_client):
+        """Test first tag reuses an existing database under the same parent page."""
+        main_db_id = "1234567890abcdef1234567890abcdef"
+        parent_page_id = "abcdef1234567890abcdef1234567890"
+        work_db_id = "fedcba0987654321fedcba0987654321"
+        mock_notion_client.databases.retrieve.return_value = {
+            "id": main_db_id,
+            "title": [{"plain_text": "Keep"}],
+            "parent": {"type": "page_id", "page_id": parent_page_id}
+        }
+        mock_notion_client.search.return_value = {
+            "results": [
+                {
+                    "id": work_db_id,
+                    "title": [{"plain_text": "work"}],
+                    "parent": {"type": "page_id", "page_id": parent_page_id}
+                }
+            ],
+            "has_more": False,
+            "next_cursor": None
+        }
+
+        result = await writer.resolve_target_database(
+            root_reference=main_db_id,
+            labels=["work", "ideas"],
+            main_database_name="Keep"
+        )
+
+        assert result["database_id"] == work_db_id
+        assert result["database_name"] == "work"
+        assert result["created"] is False
+        mock_notion_client.databases.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_resolve_target_database_creates_missing_database_under_page(self, writer, mock_notion_client):
+        """Test missing tag database is created under the configured parent page."""
+        page_root_id = "abcdef1234567890abcdef1234567890"
+        new_db_id = "fedcba0987654321fedcba0987654321"
+        mock_notion_client.databases.retrieve.side_effect = APIResponseError(
+            response=Mock(status_code=404),
+            message="Database not found",
+            code="object_not_found"
+        )
+        mock_notion_client.pages.retrieve.return_value = {
+            "id": page_root_id,
+            "object": "page"
+        }
+        mock_notion_client.search.return_value = {
+            "results": [],
+            "has_more": False,
+            "next_cursor": None
+        }
+        mock_notion_client.databases.create.return_value = {
+            "id": new_db_id,
+            "title": [{"plain_text": "work"}]
+        }
+
+        result = await writer.resolve_target_database(
+            root_reference=page_root_id,
+            labels=["work"],
+            main_database_name="Keep"
+        )
+
+        assert result["database_id"] == new_db_id
+        assert result["database_name"] == "work"
+        assert result["created"] is True
+        mock_notion_client.databases.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resolve_target_database_treats_page_not_database_error_as_page_root(self, writer, mock_notion_client):
+        """Test page root still works when Notion returns validation error instead of object_not_found."""
+        page_root_id = "34a39cb1c2ac80fb81efd00697b44032"
+        new_db_id = "fedcba0987654321fedcba0987654321"
+        mock_notion_client.databases.retrieve.side_effect = APIResponseError(
+            response=Mock(status_code=400),
+            message=(
+                f"Provided ID {page_root_id[:8]}-{page_root_id[8:12]}-{page_root_id[12:16]}-"
+                f"{page_root_id[16:20]}-{page_root_id[20:]} is a page, not a database. "
+                "Use the retrieve page API instead"
+            ),
+            code="validation_error"
+        )
+        mock_notion_client.pages.retrieve.return_value = {
+            "id": page_root_id,
+            "object": "page"
+        }
+        mock_notion_client.search.return_value = {
+            "results": [],
+            "has_more": False,
+            "next_cursor": None
+        }
+        mock_notion_client.databases.create.return_value = {
+            "id": new_db_id,
+            "title": [{"plain_text": "Keep"}]
+        }
+
+        result = await writer.resolve_target_database(
+            root_reference=page_root_id,
+            labels=[],
+            main_database_name="Keep"
+        )
+
+        assert result["database_id"] == new_db_id
+        assert result["database_name"] == "Keep"
+        assert result["created"] is True

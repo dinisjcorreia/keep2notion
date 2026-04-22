@@ -37,12 +37,92 @@ class SyncOrchestrator:
         self.db_ops = db_ops
         self.encryption_service = encryption_service
         self.notification_service = NotificationService()
+        self.database_cache: Dict[tuple, str] = {}
+
+    def _should_recreate_notion_page(self, response: httpx.Response) -> bool:
+        """Return True when an update failure means the saved page link is stale."""
+        response_text = response.text.lower()
+        return any(
+            marker in response_text
+            for marker in (
+                "archived",
+                "object_not_found",
+                "could not find block",
+                "could not find page",
+            )
+        )
+
+    async def _create_notion_page(
+        self,
+        notion_token: str,
+        notion_database_id: str,
+        note: Dict
+    ) -> str:
+        """Create a new Notion page for a Keep note and return its page id."""
+        response = await self.notion_client.post(
+            "/internal/notion/pages",
+            json={
+                "api_token": notion_token,
+                "database_id": notion_database_id,
+                "note": {
+                    "title": note['title'],
+                    "content": note['content'],
+                    "created_at": note['created_at'],
+                    "labels": note['labels'],
+                    "images": note['images']
+                }
+            }
+        )
+
+        if response.status_code != 201:
+            raise Exception(f"Failed to create Notion page: {response.text}")
+
+        result = response.json()
+        return result['page_id']
+
+    async def _resolve_target_database_id(
+        self,
+        notion_token: str,
+        notion_root_reference: str,
+        labels: List[str],
+        main_database_name: Optional[str]
+    ) -> str:
+        """Resolve or create the correct Notion database for the note."""
+        has_labels = any(label and label.strip() for label in labels)
+        if not has_labels and not (main_database_name and main_database_name.strip()):
+            return notion_root_reference
+
+        target_name = next((label.strip() for label in labels if label and label.strip()), None)
+        target_name = target_name or (main_database_name.strip() if main_database_name and main_database_name.strip() else "Keep")
+
+        cache_key = (notion_root_reference, target_name)
+        cached_database_id = self.database_cache.get(cache_key)
+        if cached_database_id:
+            return cached_database_id
+
+        response = await self.notion_client.post(
+            "/internal/notion/databases/resolve",
+            json={
+                "api_token": notion_token,
+                "root_reference": notion_root_reference,
+                "labels": labels,
+                "main_database_name": main_database_name
+            }
+        )
+
+        if response.status_code != 200:
+            raise Exception(f"Failed to resolve Notion database: {response.text}")
+
+        result = response.json()
+        self.database_cache[cache_key] = result["database_id"]
+        return result["database_id"]
     
     async def execute_sync(
         self,
         job_id: UUID,
         user_id: str,
-        full_sync: bool
+        full_sync: bool,
+        main_database_name: Optional[str] = None
     ) -> Dict:
         """
         Execute the synchronization workflow.
@@ -66,12 +146,15 @@ class SyncOrchestrator:
         """
         logger.info(f"Starting sync job {job_id} for user {user_id} (full_sync={full_sync})")
         
-        # Create the sync job in the database first (status will be 'queued')
-        self.db_ops.create_sync_job(
-            job_id=job_id,
-            user_id=user_id,
-            full_sync=full_sync
-        )
+        # API Gateway and the internal sync endpoint may create the job before
+        # the background task starts. Only insert when the row does not exist.
+        existing_job = self.db_ops.get_sync_job(job_id)
+        if not existing_job:
+            self.db_ops.create_sync_job(
+                job_id=job_id,
+                user_id=user_id,
+                full_sync=full_sync
+            )
         
         # Update status to 'running' now that the job exists
         self.db_ops.update_sync_job(job_id, status='running')
@@ -160,7 +243,8 @@ class SyncOrchestrator:
                         user_id=user_id,
                         note=note,
                         notion_token=credentials['notion_api_token'],
-                        notion_database_id=credentials['notion_database_id']
+                        notion_database_id=credentials['notion_database_id'],
+                        main_database_name=main_database_name
                     )
                     
                     if result['status'] == 'success':
@@ -284,7 +368,7 @@ class SyncOrchestrator:
         # Fetch notes
         params = {
             "username": username,
-            "upload_images": True  # Always upload images to S3
+            "upload_images": True  # Always upload images to external storage
         }
         
         if modified_since:
@@ -317,7 +401,8 @@ class SyncOrchestrator:
         user_id: str,
         note: Dict,
         notion_token: str,
-        notion_database_id: str
+        notion_database_id: str,
+        main_database_name: Optional[str] = None
     ) -> Dict:
         """
         Process a single note: create or update in Notion and update sync state.
@@ -358,35 +443,41 @@ class SyncOrchestrator:
                 )
                 
                 if response.status_code != 200:
-                    raise Exception(f"Failed to update Notion page: {response.text}")
-                
-                result = response.json()
-                notion_page_id = result['page_id']
+                    if self._should_recreate_notion_page(response):
+                        logger.warning(
+                            "Existing Notion page %s for note %s is unavailable; creating a replacement page",
+                            existing.notion_page_id,
+                            note_id
+                        )
+                        notion_page_id = await self._create_notion_page(
+                            notion_token=notion_token,
+                            notion_database_id=await self._resolve_target_database_id(
+                                notion_token=notion_token,
+                                notion_root_reference=notion_database_id,
+                                labels=note['labels'],
+                                main_database_name=main_database_name
+                            ),
+                            note=note
+                        )
+                    else:
+                        raise Exception(f"Failed to update Notion page: {response.text}")
+                else:
+                    result = response.json()
+                    notion_page_id = result['page_id']
             
             else:
                 # Create new page
                 logger.info(f"Creating new Notion page for note {note_id}")
-                
-                response = await self.notion_client.post(
-                    "/internal/notion/pages",
-                    json={
-                        "api_token": notion_token,
-                        "database_id": notion_database_id,
-                        "note": {
-                            "title": note['title'],
-                            "content": note['content'],
-                            "created_at": note['created_at'],
-                            "labels": note['labels'],
-                            "images": note['images']
-                        }
-                    }
+                notion_page_id = await self._create_notion_page(
+                    notion_token=notion_token,
+                    notion_database_id=await self._resolve_target_database_id(
+                        notion_token=notion_token,
+                        notion_root_reference=notion_database_id,
+                        labels=note['labels'],
+                        main_database_name=main_database_name
+                    ),
+                    note=note
                 )
-                
-                if response.status_code != 201:
-                    raise Exception(f"Failed to create Notion page: {response.text}")
-                
-                result = response.json()
-                notion_page_id = result['page_id']
             
             # Update sync state
             modified_at = datetime.fromisoformat(note['modified_at'].replace('Z', '+00:00'))

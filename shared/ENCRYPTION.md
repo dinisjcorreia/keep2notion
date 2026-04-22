@@ -33,8 +33,8 @@ from shared.encryption import EncryptionService
 # Option 1: Provide encryption key directly
 service = EncryptionService(encryption_key="your-base64-encoded-key")
 
-# Option 2: Load from environment variable (AWS Secrets Manager)
-# Set AWS_ENCRYPTION_KEY environment variable
+# Option 2: Load from environment variable
+# Set ENCRYPTION_KEY environment variable
 service = EncryptionService()
 
 # Option 3: Generate a new key (development only)
@@ -157,7 +157,7 @@ response = secrets_client.get_secret_value(
 )
 
 secret = json.loads(response['SecretString'])
-os.environ['AWS_ENCRYPTION_KEY'] = secret['encryption_key']
+os.environ['ENCRYPTION_KEY'] = secret['encryption_key']
 
 # Now EncryptionService will use this key
 service = EncryptionService()

@@ -128,7 +128,7 @@ Handles sending notifications for critical errors. Can be configured to send not
 | `KEEP_EXTRACTOR_URL` | Keep Extractor service URL | `http://localhost:8003` |
 | `NOTION_WRITER_URL` | Notion Writer service URL | `http://localhost:8004` |
 | `SYNC_SERVICE_PORT` | Port to run the service on | `8005` |
-| `AWS_ENCRYPTION_KEY` | Encryption key for credentials | Generated if not provided |
+| `ENCRYPTION_KEY` | Encryption key for credentials | Generated if not provided |
 | `ENABLE_NOTIFICATIONS` | Enable critical error notifications | `false` |
 | `NOTIFICATION_WEBHOOK_URL` | Webhook URL for notifications | None |
 

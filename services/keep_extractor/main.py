@@ -14,11 +14,11 @@ from pydantic import BaseModel
 # Import shared config
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))
-from shared.config import get_aws_config
+from shared.config import get_supabase_storage_config
 
 from auth import KeepAuthenticator
 from extractor import NoteExtractor
-from s3_client import S3Client
+from supabase_storage import SupabaseStorageClient
 
 # Configure logging
 logging.basicConfig(
@@ -33,22 +33,21 @@ logger = logging.getLogger(__name__)
 # Store authenticators per user (in production, use proper session management)
 authenticators: Dict[str, KeepAuthenticator] = {}
 
-# Initialize S3 client
-s3_client: Optional[S3Client] = None
+# Initialize storage client
+storage_client: Optional[SupabaseStorageClient] = None
 
 
-def get_s3_client() -> S3Client:
-    """Get or create S3 client."""
-    global s3_client
-    if s3_client is None:
-        aws_config = get_aws_config()
-        s3_client = S3Client(
-            bucket_name=aws_config["s3_bucket"],
-            region=aws_config["region"],
-            access_key_id=aws_config.get("access_key_id"),
-            secret_access_key=aws_config.get("secret_access_key")
+def get_storage_client() -> SupabaseStorageClient:
+    """Get or create Supabase Storage client."""
+    global storage_client
+    if storage_client is None:
+        storage_config = get_supabase_storage_config()
+        storage_client = SupabaseStorageClient(
+            supabase_url=storage_config["url"],
+            service_role_key=storage_config["service_role_key"],
+            bucket_name=storage_config["bucket"]
         )
-    return s3_client
+    return storage_client
 
 
 # Request/Response models
@@ -232,7 +231,7 @@ async def get_notes(
     Args:
         username: Google account username (must be authenticated first)
         modified_since: Optional ISO format datetime string to filter notes
-        upload_images: Whether to download and upload images to S3
+        upload_images: Whether to download and upload images to external storage
         limit: Optional limit on number of notes to return (for testing)
         
     Returns:
@@ -268,10 +267,10 @@ async def get_notes(
     try:
         keep_client = authenticator.get_client()
         
-        # Initialize S3 client if image upload is requested
-        s3 = get_s3_client() if upload_images else None
-        
-        extractor = NoteExtractor(keep_client, s3_client=s3)
+        # Initialize storage client if image upload is requested
+        storage = get_storage_client() if upload_images else None
+
+        extractor = NoteExtractor(keep_client, storage_client=storage)
         notes = await extractor.extract_notes(
             modified_since=modified_since_dt,
             upload_images=upload_images,

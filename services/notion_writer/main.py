@@ -26,9 +26,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _clean_database_id(database_id: str) -> str:
+def _clean_notion_id(notion_id: str) -> str:
     """
-    Clean and extract database ID from various formats.
+    Clean and extract a Notion page/database ID from various formats.
     
     Handles:
     - Plain UUID: 2fb86a4c5fbf806dbeb6f3f2c1b23d10
@@ -37,10 +37,10 @@ def _clean_database_id(database_id: str) -> str:
     - URL with dashes: https://www.notion.so/2fb86a4c-5fbf-806d-beb6-f3f2c1b23d10
     
     Args:
-        database_id: Database ID in any format
+        notion_id: Notion page or database ID in any format
         
     Returns:
-        Clean database ID (32 hex characters without dashes)
+        Clean Notion ID (32 hex characters without dashes)
         
     Raises:
         ValueError: If database ID is invalid
@@ -48,29 +48,34 @@ def _clean_database_id(database_id: str) -> str:
     import re
     
     # Remove whitespace
-    database_id = database_id.strip()
+    notion_id = notion_id.strip()
     
     # If it's a URL, extract the ID
-    if database_id.startswith('http'):
-        # Extract ID from URL (between last / and ? or end)
-        match = re.search(r'/([a-f0-9-]{32,36})(\?|$)', database_id)
+    if notion_id.startswith('http'):
+        # Support both bare IDs and common Notion slug URLs like /Title-<id>?...
+        match = re.search(r'([a-f0-9]{32}|[a-f0-9-]{36})(?:\?|$)', notion_id)
         if match:
-            database_id = match.group(1)
+            notion_id = match.group(1)
         else:
-            raise ValueError(f"Could not extract database ID from URL: {database_id}")
+            raise ValueError(f"Could not extract Notion ID from URL: {notion_id}")
     
     # Remove dashes if present
-    database_id = database_id.replace('-', '')
+    notion_id = notion_id.replace('-', '')
     
     # Remove query parameters if somehow still present
-    if '?' in database_id:
-        database_id = database_id.split('?')[0]
+    if '?' in notion_id:
+        notion_id = notion_id.split('?')[0]
     
     # Validate it's a 32-character hex string
-    if not re.match(r'^[a-f0-9]{32}$', database_id):
-        raise ValueError(f"Invalid database ID format: {database_id}. Expected 32 hex characters.")
+    if not re.match(r'^[a-f0-9]{32}$', notion_id):
+        raise ValueError(f"Invalid Notion ID format: {notion_id}. Expected 32 hex characters.")
     
-    return database_id
+    return notion_id
+
+
+def _clean_database_id(database_id: str) -> str:
+    """Backward-compatible database ID cleaner."""
+    return _clean_notion_id(database_id)
 
 
 @asynccontextmanager
@@ -140,9 +145,12 @@ async def root():
 
 # Request/Response models
 class ImageAttachment(BaseModel):
-    """Image attachment model."""
+    """Image attachment model.
+
+    Note: `s3_url` is a legacy field name that now stores any public image URL.
+    """
     id: str
-    s3_url: str
+    s3_url: Optional[str] = None
     filename: str
 
 
@@ -166,6 +174,21 @@ class CreatePageResponse(BaseModel):
     """Response model for page creation."""
     page_id: str
     url: str
+
+
+class ResolveDatabaseRequest(BaseModel):
+    """Request model for resolving or creating a target Notion database."""
+    api_token: str
+    root_reference: str
+    labels: List[str] = []
+    main_database_name: Optional[str] = None
+
+
+class ResolveDatabaseResponse(BaseModel):
+    """Response model for database resolution."""
+    database_id: str
+    database_name: str
+    created: bool = False
 
 
 class UpdatePageRequest(BaseModel):
@@ -217,6 +240,27 @@ async def create_page(request: CreatePageRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create Notion page: {str(e)}"
+        )
+
+
+@app.post("/internal/notion/databases/resolve", response_model=ResolveDatabaseResponse, status_code=status.HTTP_200_OK)
+async def resolve_database(request: ResolveDatabaseRequest):
+    """Resolve or create the database that should receive a note."""
+    try:
+        writer = NotionWriter(request.api_token)
+        result = await writer.resolve_target_database(
+            root_reference=_clean_notion_id(request.root_reference),
+            labels=request.labels,
+            main_database_name=request.main_database_name
+        )
+
+        return ResolveDatabaseResponse(**result)
+
+    except Exception as e:
+        logger.error(f"Error resolving Notion database: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resolve Notion database: {str(e)}"
         )
 
 

@@ -72,7 +72,7 @@ services:
       - KEEP_EXTRACTOR_URL=http://keep_extractor:8003
       - NOTION_WRITER_URL=http://notion_writer:8004
       - SYNC_SERVICE_PORT=8005
-      - AWS_ENCRYPTION_KEY=${AWS_ENCRYPTION_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - ENABLE_NOTIFICATIONS=${ENABLE_NOTIFICATIONS:-false}
       - NOTIFICATION_WEBHOOK_URL=${NOTIFICATION_WEBHOOK_URL}
     ports:
@@ -92,10 +92,9 @@ services:
       dockerfile: services/keep_extractor/Dockerfile
     container_name: keep-notion-keep-extractor
     environment:
-      - AWS_REGION=${AWS_REGION}
-      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET}
       - PORT=8003
     ports:
       - "8003:8003"
@@ -111,10 +110,6 @@ services:
       dockerfile: services/notion_writer/Dockerfile
     container_name: keep-notion-notion-writer
     environment:
-      - AWS_REGION=${AWS_REGION}
-      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - PORT=8004
     ports:
       - "8004:8004"

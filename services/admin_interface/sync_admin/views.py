@@ -243,6 +243,7 @@ def retry_sync_job(request, job_id):
                 json={
                     "user_id": job.user_id,
                     "full_sync": job.full_sync,
+                    "main_database_name": "Keep",
                 }
             )
             
@@ -329,6 +330,7 @@ def manual_sync_trigger(request):
         # Get form data
         user_id = request.POST.get('user_id')
         sync_type = request.POST.get('sync_type')
+        main_database_name = request.POST.get('main_database_name', '').strip()
         
         # Validate inputs
         if not user_id:
@@ -337,6 +339,10 @@ def manual_sync_trigger(request):
         
         if not sync_type:
             messages.error(request, 'Please select a sync type.')
+            return render(request, 'manual_sync_trigger.html', {'users': users})
+
+        if not main_database_name:
+            messages.error(request, 'Please enter the main Notion database name.')
             return render(request, 'manual_sync_trigger.html', {'users': users})
         
         # Determine if it's a full sync
@@ -359,6 +365,7 @@ def manual_sync_trigger(request):
                     json={
                         "user_id": user_id,
                         "full_sync": full_sync,
+                        "main_database_name": main_database_name,
                     }
                 )
                 
@@ -420,6 +427,7 @@ def credential_config(request):
             google_oauth_token = request.POST.get('google_oauth_token', '').strip()
             notion_api_token = request.POST.get('notion_api_token', '').strip()
             notion_database_id = request.POST.get('notion_database_id', '').strip()
+            existing_credential = Credential.objects.filter(user_id=user_id).first() if user_id else None
             
             # Validate inputs
             if not user_id:
@@ -429,14 +437,14 @@ def credential_config(request):
                     'selected_credential': selected_credential,
                 })
             
-            if not google_oauth_token:
+            if not google_oauth_token and not existing_credential:
                 messages.error(request, 'Google OAuth token is required.')
                 return render(request, 'credential_config.html', {
                     'credentials': credentials,
                     'selected_credential': selected_credential,
                 })
             
-            if not notion_api_token:
+            if not notion_api_token and not existing_credential:
                 messages.error(request, 'Notion API token is required.')
                 return render(request, 'credential_config.html', {
                     'credentials': credentials,
@@ -451,9 +459,15 @@ def credential_config(request):
                 })
             
             try:
-                # Encrypt the credentials
-                encrypted_google_token = encryption_service.encrypt(google_oauth_token)
-                encrypted_notion_token = encryption_service.encrypt(notion_api_token)
+                if existing_credential and (not google_oauth_token or google_oauth_token == '********'):
+                    encrypted_google_token = existing_credential.google_oauth_token
+                else:
+                    encrypted_google_token = encryption_service.encrypt(google_oauth_token)
+
+                if existing_credential and (not notion_api_token or notion_api_token == '********'):
+                    encrypted_notion_token = existing_credential.notion_api_token
+                else:
+                    encrypted_notion_token = encryption_service.encrypt(notion_api_token)
                 
                 # Create or update credential
                 credential, created = Credential.objects.update_or_create(

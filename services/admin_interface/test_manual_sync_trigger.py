@@ -93,7 +93,8 @@ class ManualSyncTriggerTestCase(TestCase):
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
             'user_id': self.test_user_id,
-            'sync_type': 'incremental'
+            'sync_type': 'incremental',
+            'main_database_name': 'Keep'
         })
         
         # Check redirect to job detail page
@@ -106,6 +107,7 @@ class ManualSyncTriggerTestCase(TestCase):
         assert '/internal/sync/execute' in call_args[0][0]
         assert call_args[1]['json']['user_id'] == self.test_user_id
         assert call_args[1]['json']['full_sync'] is False
+        assert call_args[1]['json']['main_database_name'] == 'Keep'
     
     @patch('sync_admin.views.httpx.Client')
     def test_post_manual_sync_trigger_full(self, mock_httpx_client):
@@ -129,7 +131,8 @@ class ManualSyncTriggerTestCase(TestCase):
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
             'user_id': self.test_user_id,
-            'sync_type': 'full'
+            'sync_type': 'full',
+            'main_database_name': 'Keep'
         })
         
         # Check redirect to job detail page
@@ -141,12 +144,14 @@ class ManualSyncTriggerTestCase(TestCase):
         call_args = mock_client_instance.post.call_args
         assert call_args[1]['json']['user_id'] == self.test_user_id
         assert call_args[1]['json']['full_sync'] is True
+        assert call_args[1]['json']['main_database_name'] == 'Keep'
     
     def test_post_manual_sync_trigger_missing_user(self):
         """Test POST request with missing user_id."""
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
-            'sync_type': 'incremental'
+            'sync_type': 'incremental',
+            'main_database_name': 'Keep'
         })
         
         # Should return to form with error
@@ -162,7 +167,8 @@ class ManualSyncTriggerTestCase(TestCase):
         """Test POST request with missing sync_type."""
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
-            'user_id': self.test_user_id
+            'user_id': self.test_user_id,
+            'main_database_name': 'Keep'
         })
         
         # Should return to form with error
@@ -174,12 +180,29 @@ class ManualSyncTriggerTestCase(TestCase):
         assert len(messages) > 0
         assert 'select a sync type' in str(messages[0]).lower()
     
+    def test_post_manual_sync_trigger_missing_main_database_name(self):
+        """Test POST request with missing main database name."""
+        url = reverse('manual_sync_trigger')
+        response = self.client.post(url, {
+            'user_id': self.test_user_id,
+            'sync_type': 'incremental',
+            'main_database_name': ''
+        })
+
+        assert response.status_code == 200
+        self.assertTemplateUsed(response, 'manual_sync_trigger.html')
+
+        messages = list(response.context['messages'])
+        assert len(messages) > 0
+        assert 'main notion database name' in str(messages[0]).lower()
+
     def test_post_manual_sync_trigger_user_without_credentials(self):
         """Test POST request with user that has no credentials."""
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
             'user_id': 'nonexistent_user',
-            'sync_type': 'incremental'
+            'sync_type': 'incremental',
+            'main_database_name': 'Keep'
         })
         
         # Should return to form with error
@@ -209,7 +232,8 @@ class ManualSyncTriggerTestCase(TestCase):
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
             'user_id': self.test_user_id,
-            'sync_type': 'incremental'
+            'sync_type': 'incremental',
+            'main_database_name': 'Keep'
         })
         
         # Should return to form with error
@@ -236,7 +260,8 @@ class ManualSyncTriggerTestCase(TestCase):
         url = reverse('manual_sync_trigger')
         response = self.client.post(url, {
             'user_id': self.test_user_id,
-            'sync_type': 'incremental'
+            'sync_type': 'incremental',
+            'main_database_name': 'Keep'
         })
         
         # Should return to form with error

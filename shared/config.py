@@ -21,11 +21,10 @@ def get_database_url() -> str:
     )
 
 
-def get_aws_config() -> dict:
-    """Get AWS configuration from environment."""
+def get_supabase_storage_config() -> dict:
+    """Get Supabase Storage configuration from environment."""
     return {
-        "region": get_env("AWS_REGION", "us-east-1"),
-        "s3_bucket": get_env("AWS_S3_BUCKET", "keep-notion-sync"),
-        "access_key_id": get_env("AWS_ACCESS_KEY_ID"),
-        "secret_access_key": get_env("AWS_SECRET_ACCESS_KEY"),
+        "url": get_env("SUPABASE_URL", required=True),
+        "service_role_key": get_env("SUPABASE_SERVICE_ROLE_KEY", required=True),
+        "bucket": get_env("SUPABASE_STORAGE_BUCKET", required=True),
     }

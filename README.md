@@ -11,7 +11,7 @@
 ##  Features
 
 -  **Automatic Sync**: Keep your notes synchronized between Google Keep and Notion
--  **Image Support**: Automatically uploads images to S3 and embeds them in Notion
+-  **Image Support**: Automatically uploads images to Supabase Storage and embeds them in Notion
 -  **Label Preservation**: Keep labels are synced as Notion tags
 -  **Admin Dashboard**: Web-based interface to monitor and manage syncs
 -  **Secure**: All credentials encrypted at rest using AES-256
@@ -45,8 +45,8 @@ With gallery view, access and navigate through all of your google keep notes in 
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│ Google Keep │────▶│ Keep         │────▶│   AWS S3    │
-│             │     │ Extractor    │     │  (Images)   │
+│ Google Keep │────▶│ Keep         │────▶│ Supabase    │
+│             │     │ Extractor    │     │ Storage     │
 └─────────────┘     └──────────────┘     └─────────────┘
                             │
                             ▼
@@ -83,7 +83,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 ### Prerequisites
 
 - Docker & Docker Compose
-- AWS Account (for S3 storage)
+- Supabase project with Storage enabled
 - Google Account (for Keep)
 - Notion Account with API access
 
@@ -107,11 +107,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
    # Database
    DATABASE_URL=postgresql://postgres:postgres@db:5432/keep_notion_sync
    
-   # AWS S3
-   AWS_REGION=us-east-1
-   AWS_S3_BUCKET=your-bucket-name
-   AWS_ACCESS_KEY_ID=your-access-key
-   AWS_SECRET_ACCESS_KEY=your-secret-key
+   # Supabase Storage
+   SUPABASE_URL=https://your-project-ref.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   SUPABASE_STORAGE_BUCKET=keep-images
    
    # Encryption
    ENCRYPTION_KEY=your-32-byte-base64-key
@@ -169,6 +168,15 @@ Google Keep doesn't have an official API. Follow these steps:
    ```
 
 3. Follow the prompts to get your master token
+
+### Supabase Storage
+
+1. Create a Supabase project at https://supabase.com/dashboard
+2. Open "Storage" and create a public bucket (for example `keep-images`)
+3. Open "Project Settings" → "API"
+4. Copy your project URL as `SUPABASE_URL`
+5. Copy the `service_role` key as `SUPABASE_SERVICE_ROLE_KEY`
+6. Set `SUPABASE_STORAGE_BUCKET` to your bucket name
 
 ### Notion API Token
 
@@ -258,7 +266,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Google Keep API**: This project uses an unofficial Google Keep API. Google may change their API at any time, which could break functionality.
 - **Security**: Always keep your `.env` file secure and never commit it to version control.
-- **AWS Costs**: S3 storage and data transfer may incur costs. Monitor your AWS usage.
+- **Storage Costs**: Supabase Storage bandwidth and storage may incur costs depending on your plan.
 - **Rate Limits**: Notion API has rate limits (3 requests/second). Large syncs may take time.
 
 ---

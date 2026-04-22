@@ -132,6 +132,34 @@ class CredentialConfigViewTests(TestCase):
         
         # Verify only one credential exists
         self.assertEqual(Credential.objects.count(), 1)
+
+    def test_update_existing_credential_preserves_masked_tokens(self):
+        """Test editing database/root reference without re-entering tokens."""
+        user_id = 'masked-token-user@example.com'
+        Credential.objects.filter(user_id=user_id).delete()
+        Credential.objects.create(
+            user_id=user_id,
+            google_oauth_token='existing_google_encrypted',
+            notion_api_token='existing_notion_encrypted',
+            notion_database_id='old_database_id'
+        )
+
+        new_database_id = 'https://www.notion.so/Notas-34a39cb1c2ac80fb81efd00697b44032'
+
+        response = self.client.post(self.url, {
+            'action': 'save',
+            'user_id': user_id,
+            'google_oauth_token': '********',
+            'notion_api_token': '********',
+            'notion_database_id': new_database_id,
+        })
+
+        self.assertEqual(response.status_code, 302)
+
+        credential = Credential.objects.get(user_id=user_id)
+        self.assertEqual(credential.notion_database_id, new_database_id)
+        self.assertEqual(credential.google_oauth_token, 'existing_google_encrypted')
+        self.assertEqual(credential.notion_api_token, 'existing_notion_encrypted')
     
     def test_delete_credential(self):
         """Test deleting a credential."""

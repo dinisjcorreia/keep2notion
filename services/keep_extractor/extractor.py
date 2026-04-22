@@ -8,7 +8,7 @@ import gkeepapi
 import requests
 from requests.exceptions import RequestException
 
-from s3_client import S3Client
+from supabase_storage import SupabaseStorageClient
 from retry import retry_with_exponential_backoff
 
 logger = logging.getLogger(__name__)
@@ -16,17 +16,17 @@ logger = logging.getLogger(__name__)
 
 class NoteExtractor:
     """Extracts notes from Google Keep."""
-    
-    def __init__(self, keep_client: gkeepapi.Keep, s3_client: Optional[S3Client] = None):
+
+    def __init__(self, keep_client: gkeepapi.Keep, storage_client: Optional[SupabaseStorageClient] = None):
         """
         Initialize the note extractor.
         
         Args:
             keep_client: Authenticated gkeepapi.Keep client
-            s3_client: Optional S3 client for image uploads
+            storage_client: Optional storage client for image uploads
         """
         self.keep_client = keep_client
-        self.s3_client = s3_client
+        self.storage_client = storage_client
     
     async def extract_notes(
         self, 
@@ -39,7 +39,7 @@ class NoteExtractor:
         
         Args:
             modified_since: Optional datetime to filter notes modified after this time
-            upload_images: Whether to download and upload images to S3
+            upload_images: Whether to download and upload images to external storage
             limit: Optional limit on number of notes to extract (applied early to avoid processing all images)
             
         Returns:
@@ -91,7 +91,7 @@ class NoteExtractor:
         
         Args:
             note: gkeepapi note object
-            upload_images: Whether to download and upload images to S3
+            upload_images: Whether to download and upload images to external storage
             note_number: Serial number for untitled notes
             
         Returns:
@@ -116,7 +116,7 @@ class NoteExtractor:
         
         # Extract and upload images
         images = []
-        if hasattr(note, 'blobs') and upload_images and self.s3_client:
+        if hasattr(note, 'blobs') and upload_images and self.storage_client:
             images = await self._process_images(note)
         elif hasattr(note, 'blobs'):
             # Just extract image metadata without uploading
@@ -139,13 +139,13 @@ class NoteExtractor:
     
     async def _process_images(self, note: gkeepapi.node.TopLevelNode) -> List[dict]:
         """
-        Download images from Keep and upload to S3.
+        Download images from Keep and upload to Supabase Storage.
         
         Args:
             note: gkeepapi note object
             
         Returns:
-            List of image metadata with S3 URLs
+            List of image metadata with public URLs
         """
         import uuid
         images = []
@@ -162,20 +162,21 @@ class NoteExtractor:
                 # Generate a simple unique filename to avoid folder nesting
                 # Use UUID to ensure uniqueness and avoid special characters
                 unique_id = str(uuid.uuid4())
-                s3_key = f"keep-images/{unique_id}.jpg"
-                
-                s3_url = await self._upload_to_s3_with_retry(
+                storage_key = f"keep-images/{unique_id}.jpg"
+
+                storage_url = await self._upload_to_storage_with_retry(
                     image_data=image_data,
-                    key=s3_key
+                    key=storage_key
                 )
                 
                 images.append({
                     "id": blob_id,
                     "filename": filename,
-                    "s3_url": s3_url
+                    # Keep legacy field name for compatibility with downstream services.
+                    "s3_url": storage_url
                 })
                 
-                logger.info(f"Successfully uploaded image {blob_id} to S3: {s3_url}")
+                logger.info(f"Successfully uploaded image {blob_id} to storage: {storage_url}")
             
             except Exception as e:
                 logger.error(f"Failed to process image {blob_id} after retries: {e}", exc_info=True)
@@ -216,18 +217,18 @@ class NoteExtractor:
         exponential_base=2.0,
         exceptions=(Exception,)
     )
-    async def _upload_to_s3_with_retry(self, image_data: bytes, key: str) -> str:
+    async def _upload_to_storage_with_retry(self, image_data: bytes, key: str) -> str:
         """
-        Upload image to S3 with retry logic.
+        Upload image to external storage with retry logic.
         
         Args:
             image_data: Image binary data
-            key: S3 object key
+            key: Storage object key
             
         Returns:
-            S3 URL
+            Public URL
         """
-        return await self.s3_client.upload_image(
+        return await self.storage_client.upload_image(
             image_data=image_data,
             key=key,
             content_type="image/jpeg"

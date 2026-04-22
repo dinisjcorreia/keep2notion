@@ -7,7 +7,10 @@ from typing import List, Optional
 
 @dataclass
 class ImageAttachment:
-    """Represents an image attachment from Google Keep."""
+    """Represents an image attachment from Google Keep.
+
+    Note: `s3_url` is a legacy field name that now stores any public image URL.
+    """
     id: str
     s3_url: str
     filename: str

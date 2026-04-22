@@ -33,10 +33,11 @@ def mock_db_ops():
     db_ops = Mock()
     
     # Mock sync job operations
+    db_ops.create_sync_job = Mock()
     db_ops.update_sync_job = Mock()
     db_ops.add_sync_log = Mock()
     db_ops.increment_sync_job_progress = Mock()
-    db_ops.get_sync_job = Mock()
+    db_ops.get_sync_job = Mock(return_value=None)
     
     # Mock credential operations
     db_ops.get_credentials = Mock(return_value={
@@ -94,7 +95,7 @@ def sample_notes():
             'content': 'This is test note 1',
             'created_at': '2024-01-01T10:00:00Z',
             'modified_at': '2024-01-01T10:00:00Z',
-            'labels': ['work', 'important'],
+            'labels': [],
             'images': []
         },
         {
@@ -103,7 +104,7 @@ def sample_notes():
             'content': 'This is test note 2 with images',
             'created_at': '2024-01-02T10:00:00Z',
             'modified_at': '2024-01-02T10:00:00Z',
-            'labels': ['personal'],
+            'labels': [],
             'images': [
                 {
                     'id': 'img_1',
@@ -191,6 +192,92 @@ async def test_full_sync_workflow_success(orchestrator, mock_keep_client, mock_n
     
     # Verify job status updates
     assert mock_db_ops.update_sync_job.call_count >= 2  # At least running and completed
+    mock_db_ops.create_sync_job.assert_called_once_with(
+        job_id=job_id,
+        user_id=user_id,
+        full_sync=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_full_sync_reuses_existing_job(orchestrator, mock_keep_client, mock_notion_client, mock_db_ops):
+    """Test existing sync job rows are reused instead of inserted twice."""
+    job_id = uuid4()
+    user_id = 'test_user'
+    mock_db_ops.get_sync_job.return_value = Mock()
+
+    auth_response = Mock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {'status': 'authenticated'}
+
+    notes_response = Mock()
+    notes_response.status_code = 200
+    notes_response.json.return_value = {'notes': []}
+
+    mock_keep_client.post.return_value = auth_response
+    mock_keep_client.get.return_value = notes_response
+
+    result = await orchestrator.execute_sync(job_id, user_id, full_sync=True)
+
+    assert result['status'] == 'completed'
+    mock_db_ops.create_sync_job.assert_not_called()
+    mock_db_ops.update_sync_job.assert_any_call(job_id, status='running')
+
+
+@pytest.mark.asyncio
+async def test_full_sync_resolves_database_from_first_tag(orchestrator, mock_keep_client, mock_notion_client, mock_db_ops):
+    """Test first Keep tag chooses the target Notion database when main name is provided."""
+    job_id = uuid4()
+    user_id = 'test_user'
+    tagged_note = {
+        'id': 'tagged_note',
+        'title': 'Tagged note',
+        'content': 'Content',
+        'created_at': '2024-01-01T10:00:00Z',
+        'modified_at': '2024-01-01T10:00:00Z',
+        'labels': ['work', 'ideas'],
+        'images': []
+    }
+
+    auth_response = Mock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {'status': 'authenticated'}
+
+    notes_response = Mock()
+    notes_response.status_code = 200
+    notes_response.json.return_value = {'notes': [tagged_note]}
+
+    resolve_response = Mock()
+    resolve_response.status_code = 200
+    resolve_response.json.return_value = {
+        'database_id': 'work_database',
+        'database_name': 'work',
+        'created': False
+    }
+
+    create_response = Mock()
+    create_response.status_code = 201
+    create_response.json.return_value = {'page_id': 'notion_page_1', 'url': 'https://notion.so/page1'}
+
+    mock_keep_client.post.return_value = auth_response
+    mock_keep_client.get.return_value = notes_response
+
+    async def notion_post_side_effect(url, json):
+        if url == "/internal/notion/databases/resolve":
+            return resolve_response
+        if url == "/internal/notion/pages":
+            return create_response
+        raise AssertionError(f"Unexpected Notion endpoint: {url}")
+
+    mock_notion_client.post.side_effect = notion_post_side_effect
+
+    result = await orchestrator.execute_sync(job_id, user_id, full_sync=True, main_database_name="Keep")
+
+    assert result['status'] == 'completed'
+    assert mock_notion_client.post.call_count == 2
+    resolve_call = mock_notion_client.post.call_args_list[0]
+    assert resolve_call.kwargs['json']['labels'] == ['work', 'ideas']
+    assert resolve_call.kwargs['json']['main_database_name'] == 'Keep'
 
 
 @pytest.mark.asyncio
@@ -361,6 +448,51 @@ async def test_incremental_sync_updates_existing_pages(orchestrator, mock_keep_c
     
     # Verify sync state was updated
     mock_db_ops.upsert_sync_state.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_incremental_sync_recreates_archived_pages(orchestrator, mock_keep_client, mock_notion_client, mock_db_ops, sample_notes):
+    """Test archived Notion pages are recreated and relinked."""
+    job_id = uuid4()
+    user_id = 'test_user'
+
+    existing_record = Mock()
+    existing_record.notion_page_id = 'archived_notion_page'
+    mock_db_ops.get_sync_record.return_value = existing_record
+
+    auth_response = Mock()
+    auth_response.status_code = 200
+    auth_response.json.return_value = {'status': 'authenticated'}
+
+    notes_response = Mock()
+    notes_response.status_code = 200
+    notes_response.json.return_value = {'notes': [sample_notes[0]]}
+
+    mock_keep_client.post.return_value = auth_response
+    mock_keep_client.get.return_value = notes_response
+
+    notion_update_response = Mock()
+    notion_update_response.status_code = 500
+    notion_update_response.text = (
+        "{\"detail\":\"Failed to update Notion page: "
+        "Can't edit block that is archived. You must unarchive the block before editing.\"}"
+    )
+
+    notion_create_response = Mock()
+    notion_create_response.status_code = 201
+    notion_create_response.json.return_value = {'page_id': 'replacement_page', 'url': 'https://notion.so/replacement'}
+
+    mock_notion_client.patch.return_value = notion_update_response
+    mock_notion_client.post.return_value = notion_create_response
+
+    result = await orchestrator.execute_sync(job_id, user_id, full_sync=False)
+
+    assert result['status'] == 'completed'
+    mock_notion_client.patch.assert_called_once()
+    mock_notion_client.post.assert_called_once()
+    mock_db_ops.upsert_sync_state.assert_called_once()
+    upsert_kwargs = mock_db_ops.upsert_sync_state.call_args.kwargs
+    assert upsert_kwargs['notion_page_id'] == 'replacement_page'
 
 
 # Test: Error Handling for Keep Extractor Failures

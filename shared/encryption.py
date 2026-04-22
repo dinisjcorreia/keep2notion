@@ -15,14 +15,14 @@ class EncryptionService:
         
         Args:
             encryption_key: Base64-encoded encryption key. If not provided,
-                          will attempt to load from AWS_ENCRYPTION_KEY env var
+                          will attempt to load from ENCRYPTION_KEY env var,
+                          then legacy AWS_ENCRYPTION_KEY env var,
                           or generate a new key (not recommended for production)
         """
         if encryption_key:
             self.key = encryption_key.encode()
         else:
-            # Try to get from environment (AWS Secrets Manager in production)
-            env_key = os.getenv('AWS_ENCRYPTION_KEY')
+            env_key = os.getenv('ENCRYPTION_KEY') or os.getenv('AWS_ENCRYPTION_KEY')
             if env_key:
                 self.key = env_key.encode()
             else:

@@ -139,7 +139,7 @@ export DATABASE_URL="postgresql://user:pass@localhost:5432/dbname"
 
 For encryption, set the encryption key:
 ```bash
-export AWS_ENCRYPTION_KEY="your-base64-encoded-key"
+export ENCRYPTION_KEY="your-base64-encoded-key"
 ```
 
 ## Testing
