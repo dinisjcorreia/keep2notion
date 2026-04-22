@@ -49,11 +49,11 @@ Important:
 
 ### Manual Sync Trigger
 
-![Manual Sync Trigger](docs/images/manual-sync-trigger.png)
+![Manual Sync Trigger](docs/images/manual-sync-trigger-redesign.png)
 
 ### Sync Job Details
 
-![Sync Job Details](docs/images/sync-job-details.png)
+![Sync Job Details](docs/images/sync-job-details-redesign.png)
 
 ### Notion Example
 
