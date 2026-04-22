@@ -1,276 +1,359 @@
 # Keep2Notion
 
-> Automatically sync your Google Keep notes to Notion with images, labels, and full content preservation.
+Sync Google Keep notes into Notion with:
+- full note text
+- images
+- Google Keep labels
+- per-tag Notion database routing
+
+Images are stored in Supabase Storage. Notes can be routed into different Notion databases based on the first Google Keep label.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
----
-##  Features
+## Features
 
--  **Automatic Sync**: Keep your notes synchronized between Google Keep and Notion
--  **Image Support**: Automatically uploads images to Supabase Storage and embeds them in Notion
--  **Label Preservation**: Keep labels are synced as Notion tags
--  **Admin Dashboard**: Web-based interface to monitor and manage syncs
--  **Secure**: All credentials encrypted at rest using AES-256
--  **Docker Ready**: Easy deployment with Docker Compose
--  **Cloud Native**: Kubernetes manifests included for production deployment
--  **Monitoring**: Built-in health checks and detailed sync logs
--  **Incremental Sync**: Only syncs changed notes to save time and resources
+- Automatic sync from Google Keep to Notion
+- Incremental and full sync modes
+- Image upload to Supabase Storage, then embed in Notion
+- Images inserted at top of note content in Notion
+- First Google Keep label routes note to matching Notion database
+- Automatic Notion database creation under a connected root page
+- Fallback database name for notes without labels
+- Admin UI for credentials, manual sync, job history, logs, retry, abort
+- Encrypted stored credentials
+- Docker Compose local setup
 
----
+## Routing Rules
 
-##  Screenshots
+Keep2Notion now supports tag-based database routing:
+
+- If note has labels, first non-empty label wins
+- Label name becomes target Notion database name
+- If database does not exist yet, app creates it automatically
+- If note has no labels, app uses fallback database name entered on manual trigger page
+
+Example:
+
+- Note labels: `work`, `ideas` -> goes to database `work`
+- No labels -> goes to fallback database, for example `Keep`
+
+Important:
+
+- Best setup is to store a Notion page URL/ID in credentials as root page
+- That page must be connected to your Notion integration
+- New databases are created under that page
+
+## Screenshots
 
 ### Manual Sync Trigger
-Easily trigger synchronization jobs from the admin interface with options for full or incremental sync.
 
 ![Manual Sync Trigger](docs/images/manual-sync-trigger.png)
 
 ### Sync Job Details
-Monitor sync progress in real-time with detailed logs, success rates, and comprehensive job information.
 
 ![Sync Job Details](docs/images/sync-job-details.png)
 
-### Notion Database preview
-With gallery view, access and navigate through all of your google keep notes in Notion as you would have in Keep
+### Notion Example
 
 ![Notion sample](docs/images/Notion-sample.png)
 
----
+## Architecture
 
-##  Architecture
+```text
+Google Keep
+  -> Keep Extractor
+  -> Supabase Storage
+  -> Sync Service
+  -> Notion Writer
+  -> Notion
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│ Google Keep │────▶│ Keep         │────▶│ Supabase    │
-│             │     │ Extractor    │     │ Storage     │
-└─────────────┘     └──────────────┘     └─────────────┘
-                            │
-                            ▼
-                    ┌──────────────┐
-                    │    Sync      │
-                    │ Orchestrator │
-                    └──────────────┘
-                            │
-                            ▼
-                    ┌──────────────┐     ┌─────────────┐
-                    │   Notion     │────▶│   Notion    │
-                    │   Writer     │     │  Database   │
-                    └──────────────┘     └─────────────┘
-                            │
-                            ▼
-                    ┌──────────────┐
-                    │  PostgreSQL  │
-                    │  (Sync State)│
-                    └──────────────┘
-                            │
-                            ▼
-                    ┌──────────────┐
-                    │    Admin     │
-                    │  Interface   │
-                    └──────────────┘
+PostgreSQL stores:
+- sync jobs
+- sync state
+- encrypted credentials
+
+Admin Interface reads PostgreSQL and drives sync actions.
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for deeper architecture notes.
 
----
-
-##  Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Supabase project with Storage enabled
-- Google Account (for Keep)
-- Notion Account with API access
+- Docker and Docker Compose
+- Supabase project
+- Notion workspace
+- Google account with Keep notes
 
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/cochilocovt/keep2notion.git
-   cd keep2notion
-   ```
-
-2. **Copy environment template**
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Configure environment variables**
-   
-   Edit `.env` and fill in your credentials:
-   ```bash
-   # Database
-   DATABASE_URL=postgresql://postgres:postgres@db:5432/keep_notion_sync
-   
-   # Supabase Storage
-   SUPABASE_URL=https://your-project-ref.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   SUPABASE_STORAGE_BUCKET=keep-images
-   
-   # Encryption
-   ENCRYPTION_KEY=your-32-byte-base64-key
-   SECRET_KEY=your-django-secret-key
-   ```
-
-4. **Generate encryption keys**
-   ```bash
-   # Generate encryption key
-   python -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
-   
-   # Generate Django secret key
-   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-   ```
-
-5. **Start the services**
-   ```bash
-   docker-compose up -d
-   ```
-
-6. **Access the admin interface**
-   
-   Open http://localhost:8000 in your browser
-
-7. **Configure credentials**
-   
-   - Navigate to "Credential Configuration"
-   - Add your Google Keep master token
-   - Add your Notion API token and database ID
-   - Save
-
-8. **Trigger your first sync**
-   
-   - Go to "Manual Sync Trigger"
-   - Select your user
-   - Choose "Full Sync"
-   - Click "Start Sync"
-
----
-
-## 🔑 Getting Credentials
-
-### Google Keep Master Token
-
-Google Keep doesn't have an official API. Follow these steps:
-
-1. Install dependencies:
-   ```bash
-   pip install gpsoauth
-   ```
-
-2. Run the token generator:
-   ```bash
-   python get_master_token_python.py
-   ```
-
-3. Follow the prompts to get your master token
-
-### Supabase Storage
-
-1. Create a Supabase project at https://supabase.com/dashboard
-2. Open "Storage" and create a public bucket (for example `keep-images`)
-3. Open "Project Settings" → "API"
-4. Copy your project URL as `SUPABASE_URL`
-5. Copy the `service_role` key as `SUPABASE_SERVICE_ROLE_KEY`
-6. Set `SUPABASE_STORAGE_BUCKET` to your bucket name
-
-### Notion API Token
-
-1. Go to https://www.notion.so/my-integrations
-2. Click "New integration"
-3. Give it a name (e.g., "Keep2Notion")
-4. Select capabilities: Read content, Update content, Insert content
-5. Copy the "Internal Integration Token"
-6. Share your target database with the integration
-
-### Notion Database ID
-
-1. Open your Notion database in a browser
-2. The database ID is in the URL:
-   ```
-   https://notion.so/workspace/DATABASE_ID?v=...
-   ```
-3. Copy the 32-character DATABASE_ID
-
----
-
-## 📖 Documentation
-
-- [Architecture](ARCHITECTURE.md) - System design and components
-- [Monitoring Guide](MONITORING_GUIDE.md) - How to monitor the application
-- [Sync State Management](SYNC_STATE_MANAGEMENT.md) - Understanding sync state
-- [Deployment Guide](deployment/README.md) - Production deployment
-- [Roadmap](ROADMAP.md) - Planned features
-
----
-
-##  Docker Deployment
-
-### Development
+### 1. Clone repo
 
 ```bash
-docker-compose up -d
+git clone https://github.com/cochilocovt/keep2notion.git
+cd keep2notion
 ```
 
-### Production
-
-See [deployment/README.md](deployment/README.md) for production deployment guides:
-- AWS EKS deployment
-- Kubernetes configuration
-- Terraform infrastructure
-- Security best practices
-
----
-
-##  Testing
+### 2. Create env file
 
 ```bash
-# Install test dependencies
-pip install pytest pytest-cov
+cp .env.example .env
+```
 
-# Run tests
+### 3. Fill `.env`
+
+Minimum important values:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/keep_notion_sync
+
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_REAL_SERVICE_ROLE_KEY
+SUPABASE_STORAGE_BUCKET=keep-images
+
+SECRET_KEY=your-django-secret-key
+ENCRYPTION_KEY=your-base64-encryption-key
+```
+
+Notes:
+
+- `SUPABASE_URL` must be your real project URL, not placeholder `your-project-ref`
+- bucket must already exist
+- bucket should be public, because Notion needs public image URLs
+
+### 4. Generate keys
+
+Encryption key:
+
+```bash
+python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+```
+
+Django secret key:
+
+```bash
+python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+### 5. Start stack
+
+```bash
+docker compose up -d
+```
+
+### 6. Open admin UI
+
+[http://localhost:8000](http://localhost:8000)
+
+Main local ports:
+
+- Admin UI: `8000`
+- API Gateway: `8001`
+- Keep Extractor: `8003`
+- Notion Writer: `8004`
+- Sync Service: `8005`
+- Postgres: `5432`
+
+## Credential Setup
+
+Open [http://localhost:8000/config/credentials/](http://localhost:8000/config/credentials/)
+
+You need:
+
+- Gmail address
+- Google Keep master token
+- Notion API token
+- Notion root page or main database URL/ID
+
+### Google Keep master token
+
+Repo includes helper script:
+
+```bash
+python3.11 -m pip install gpsoauth
+python3.11 get_master_token_python.py
+```
+
+Recommended flow:
+
+1. Open [https://accounts.google.com/EmbeddedSetup](https://accounts.google.com/EmbeddedSetup)
+2. Sign in
+3. Find `oauth_token` cookie in browser devtools
+4. Paste it into helper script
+5. Use returned master token in credential form
+
+Fallback also supported:
+
+```bash
+python3.11 get_master_token_python.py --email you@gmail.com --password '...'
+```
+
+### Supabase
+
+Create a Supabase project, then:
+
+1. Open Storage
+2. Create bucket, for example `keep-images`
+3. Make bucket public
+4. Open Project Settings -> API
+5. Copy:
+   - project URL -> `SUPABASE_URL`
+   - `service_role` key -> `SUPABASE_SERVICE_ROLE_KEY`
+
+Do not use:
+
+- publishable key
+- anon key
+
+### Notion
+
+Create internal integration:
+
+1. Open [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations)
+2. Create integration
+3. Give it at least:
+   - Read content
+   - Insert content
+   - Update content
+4. Copy token
+
+Then connect integration to your target Notion page:
+
+1. Open page in Notion
+2. Use `...`
+3. Choose `Add connections`
+4. Select your integration
+
+For best results, put page URL/ID into Keep2Notion credentials, not only a database ID.
+
+Why:
+
+- app can create tag databases under that page
+- app can still use fallback/main database under same root
+
+Accepted Notion formats:
+
+- plain 32-char ID
+- dashed UUID
+- full Notion page URL
+- full Notion database URL
+- slug URLs like `https://www.notion.so/Notas-34a39cb1c2ac80fb81efd00697b44032`
+
+## First Sync
+
+Open [http://localhost:8000/sync/trigger/](http://localhost:8000/sync/trigger/)
+
+Choose:
+
+- user
+- sync type
+- fallback database name
+
+Then start sync.
+
+Behavior:
+
+- notes with label `work` go to database `work`
+- notes with label `ideas` go to database `ideas`
+- notes without labels go to fallback database name from trigger form
+
+If a target database does not exist and your credential root is a Notion page, app creates it automatically.
+
+## Sync Job Screen
+
+Job detail page:
+
+- auto-refreshes while job is queued/running
+- shows processed, synced, and failed counters
+- shows logs
+- supports retry for failed jobs
+- supports abort for running jobs
+
+Credential screen also supports:
+
+- edit
+- delete
+- clear sync state
+
+Clear sync state is useful when you want future sync to recreate Notion pages instead of updating old mapped pages.
+
+## Common Problems
+
+### Images missing in Notion
+
+Usually Supabase config problem.
+
+Check:
+
+- `.env` has real `SUPABASE_URL`
+- `.env` has real `SUPABASE_SERVICE_ROLE_KEY`
+- bucket exists
+- bucket is public
+- containers restarted after env change
+
+Quick check:
+
+```bash
+docker compose exec -T keep_extractor /bin/sh -lc 'printf "SUPABASE_URL=%s\nSUPABASE_STORAGE_BUCKET=%s\n" "$SUPABASE_URL" "$SUPABASE_STORAGE_BUCKET"'
+```
+
+If output still shows placeholder values, app is not using real config yet.
+
+### Notion says integration cannot find page or database
+
+Usually integration access problem.
+
+Check:
+
+- integration token is correct
+- root page/database is in same workspace
+- page or database is connected to integration using `Add connections`
+
+### Job detail counters stuck at zero
+
+Refresh with latest build. Current admin UI reads actual `processed_notes` and `failed_notes` fields correctly.
+
+## Development
+
+Start stack:
+
+```bash
+docker compose up -d --build
+```
+
+Run tests:
+
+```bash
+source venv/bin/activate
 pytest
-
-# With coverage
-pytest --cov=. --cov-report=html
 ```
 
----
+Run focused tests:
 
-##  Contributing
+```bash
+source venv/bin/activate
+pytest services/notion_writer/test_writer.py -q
+pytest services/sync_service/test_sync_service.py -q
+```
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+## Deployment Docs
 
----
+Additional docs:
 
-##  License
+- [Monitoring Guide](MONITORING_GUIDE.md)
+- [Sync State Management](SYNC_STATE_MANAGEMENT.md)
+- [Deployment Guide](deployment/README.md)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Repo still contains Kubernetes and AWS-oriented deployment examples under [`deployment/`](deployment/README.md). Runtime app storage flow for note images is now Supabase, not S3.
 
----
+## License
 
-##  Acknowledgments
+MIT. See [LICENSE](LICENSE).
 
-- [gkeepapi](https://github.com/kiwiz/gkeepapi) - Unofficial Google Keep API
-- [notion-sdk-py](https://github.com/ramnes/notion-sdk-py) - Notion Python SDK
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern web framework
-- [Django](https://www.djangoproject.com/) - Admin interface framework
+## Credits
 
----
-
-## ⚠️ Important Notes
-
-- **Google Keep API**: This project uses an unofficial Google Keep API. Google may change their API at any time, which could break functionality.
-- **Security**: Always keep your `.env` file secure and never commit it to version control.
-- **Storage Costs**: Supabase Storage bandwidth and storage may incur costs depending on your plan.
-- **Rate Limits**: Notion API has rate limits (3 requests/second). Large syncs may take time.
-
----
-
-<p align="center">
-  Made with ❤️ for the productivity community
-</p>
+- [gkeepapi](https://github.com/kiwiz/gkeepapi)
+- [notion-sdk-py](https://github.com/ramnes/notion-sdk-py)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Django](https://www.djangoproject.com/)
